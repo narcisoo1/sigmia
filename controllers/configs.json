@@ -1,0 +1,85 @@
+{
+  "applications": {
+    "DenseNet121" : {
+      "Args": ""
+    },
+    "DenseNet169" : {
+      "Args": ""
+    },
+    "DenseNet201" : {
+      "Args": ""
+    },
+    "GoogleNet" : {
+      "Args": ""
+    },
+    "Inception_V3" : {
+      "Args": ""
+    },
+    "ResNet101" : {
+      "Args": ""
+    },
+    "ResNet152" : {
+      "Args": ""
+    },
+    "ResNet50" : {
+      "Args": ""
+    },
+    "VGG16" : {
+      "Args": ""
+    },
+    "VGG19" : {
+      "Args": ""
+    }
+  },
+  "metrics": {
+    "accuracy_score": {
+      "table": true,
+      "Args": ""
+    },
+    "cohen_kappa_score": {
+      "table": true,
+      "Args": ""
+    },
+    "precision": {
+      "table": true,
+      "Args": ""
+    },
+    "recall": {
+      "table": true,
+      "Args": ""
+    },
+    "precision_recall_curve": {
+      "table": false,
+      "Args": ""
+    },
+    "roc_curve": {
+      "table": false,
+      "Args": ""
+    }
+  },
+  "classifications": {
+    "RandomForest": {
+      "Parameters" : "",
+      "import": "from sklearn.ensemble import RandomForestClassifier"
+    }
+  },
+  "losses": [
+    {
+      "name": "CrossEntropyLoss",
+      "multi": null
+    },
+    {
+      "name": "BCEWithLogitsLoss",
+      "multi": null
+    }
+  ],
+  "optimizers": [
+    "Adam","SGD"
+  ],
+  "metrics-cnn": [
+    {
+      "name": "accuracy",
+      "multi": true
+    }
+  ]
+}

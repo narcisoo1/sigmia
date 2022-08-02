@@ -1,0 +1,114 @@
+{
+  "applications": {
+    "DenseNet121" : {
+      "Args": ""
+    },
+    "DenseNet169" : {
+      "Args": ""
+    },
+    "DenseNet201" : {
+      "Args": ""
+    },
+    "EfficientNetB0" : {
+      "Args": ""
+    },
+    "EfficientNetB1" : {
+      "Args": ""
+    },
+    "EfficientNetB2" : {
+      "Args": ""
+    },
+    "EfficientNetB3" : {
+      "Args": ""
+    },
+    "EfficientNetB4" : {
+      "Args": ""
+    },
+    "EfficientNetB5" : {
+      "Args": ""
+    },
+    "EfficientNetB6" : {
+      "Args": ""
+    },
+    "EfficientNetB7" : {
+      "Args": ""
+    },
+    "InceptionResNetV2" : {
+      "Args": ""
+    },
+    "InceptionV3" : {
+      "Args": ""
+    },
+    "MobileNet" : {
+      "Args": ""
+    },
+    "MobileNetV2" : {
+      "Args": ""
+    },
+    "MobileNetV3Large" : {
+      "Args": ""
+    },
+    "MobileNetV3Small" : {
+      "Args": ""
+    },
+    "NASNetLarge" : {
+      "Args": ""
+    },
+    "NASNetMobile" : {
+      "Args": ""
+    },
+    "ResNet101" : {
+      "Args": ""
+    },
+    "ResNet101V2" : {
+      "Args": ""
+    },
+    "ResNet152" : {
+      "Args": ""
+    },
+    "ResNet152V2" : {
+      "Args": ""
+    },
+    "ResNet50" : {
+      "Args": ""
+    },
+    "ResNet50V2" : {
+      "Args": ""
+    },
+    "VGG16" : {
+      "Args": ""
+    },
+    "VGG19" : {
+      "Args": ""
+    },
+    "Xception" : {
+      "Args": ""
+    }
+  },
+  "metrics": {
+    "accuracy_score": {
+      "table": true,
+      "Args": ""
+    },
+    "cohen_kappa_score": {
+      "table": true,
+      "Args": ""
+    },
+    "precision": {
+      "table": true,
+      "Args": ""
+    },
+    "recall": {
+      "table": true,
+      "Args": ""
+    },
+    "precision_recall_curve": {
+      "table": false,
+      "Args": ""
+    },
+    "roc_curve": {
+      "table": false,
+      "Args": ""
+    }
+  }
+}

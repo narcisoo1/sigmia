@@ -1,0 +1,135 @@
+# -*- coding: utf-8 -*-
+
+# Form implementation generated from reading ui file 'ui/new_weights.ui'
+#
+# Created by: PyQt5 UI code generator 5.12
+#
+# WARNING! All changes made in this file will be lost!
+
+from PyQt5 import QtCore, QtGui, QtWidgets
+
+
+class Ui_NWWindow(object):
+    def setupUi(self, MainWindow):
+        MainWindow.setObjectName("MainWindow")
+        MainWindow.resize(318, 356)
+        MainWindow.setMinimumSize(QtCore.QSize(318, 356))
+        MainWindow.setMaximumSize(QtCore.QSize(318, 356))
+        MainWindow.setStyleSheet("background-color: rgb(242, 242, 242);")
+        self.centralwidget = QtWidgets.QWidget(MainWindow)
+        self.centralwidget.setObjectName("centralwidget")
+        self.widget = QtWidgets.QWidget(self.centralwidget)
+        self.widget.setGeometry(QtCore.QRect(16, 16, 286, 140))
+        self.widget.setStyleSheet("background-color: rgb(196, 196, 196);")
+        self.widget.setObjectName("widget")
+        self.label = QtWidgets.QLabel(self.widget)
+        self.label.setGeometry(QtCore.QRect(10, 10, 60, 20))
+        font = QtGui.QFont()
+        font.setPointSize(10)
+        self.label.setFont(font)
+        self.label.setObjectName("label")
+        self.label_2 = QtWidgets.QLabel(self.widget)
+        self.label_2.setGeometry(QtCore.QRect(20, 40, 92, 20))
+        font = QtGui.QFont()
+        font.setPointSize(10)
+        self.label_2.setFont(font)
+        self.label_2.setObjectName("label_2")
+        self.label_3 = QtWidgets.QLabel(self.widget)
+        self.label_3.setGeometry(QtCore.QRect(20, 70, 92, 20))
+        font = QtGui.QFont()
+        font.setPointSize(10)
+        self.label_3.setFont(font)
+        self.label_3.setObjectName("label_3")
+        self.label_4 = QtWidgets.QLabel(self.widget)
+        self.label_4.setGeometry(QtCore.QRect(20, 100, 92, 20))
+        font = QtGui.QFont()
+        font.setPointSize(10)
+        self.label_4.setFont(font)
+        self.label_4.setObjectName("label_4")
+        self.comboBox_loss = QtWidgets.QComboBox(self.widget)
+        self.comboBox_loss.setGeometry(QtCore.QRect(120, 40, 132, 20))
+        self.comboBox_loss.setStyleSheet("background-color: rgb(242, 242, 242);")
+        self.comboBox_loss.setObjectName("comboBox_loss")
+        self.comboBox_loss_2 = QtWidgets.QComboBox(self.widget)
+        self.comboBox_loss_2.setGeometry(QtCore.QRect(120, 70, 132, 20))
+        self.comboBox_loss_2.setStyleSheet("background-color: rgb(242, 242, 242);")
+        self.comboBox_loss_2.setObjectName("comboBox_loss_2")
+        self.comboBox_loss_3 = QtWidgets.QComboBox(self.widget)
+        self.comboBox_loss_3.setGeometry(QtCore.QRect(120, 100, 132, 20))
+        self.comboBox_loss_3.setStyleSheet("background-color: rgb(242, 242, 242);")
+        self.comboBox_loss_3.setObjectName("comboBox_loss_3")
+        self.btn_load = QtWidgets.QPushButton(self.centralwidget)
+        self.btn_load.setGeometry(QtCore.QRect(122, 316, 50, 20))
+        self.btn_load.setStyleSheet("background-color: rgb(48, 71, 140);\n"
+"color: rgb(242, 242, 242);")
+        self.btn_load.setObjectName("btn_load")
+        self.btn_save = QtWidgets.QPushButton(self.centralwidget)
+        self.btn_save.setGeometry(QtCore.QRect(182, 316, 50, 20))
+        self.btn_save.setStyleSheet("background-color: rgb(48, 71, 140);\n"
+"color: rgb(242, 242, 242);")
+        self.btn_save.setObjectName("btn_save")
+        self.btn_apply = QtWidgets.QPushButton(self.centralwidget)
+        self.btn_apply.setGeometry(QtCore.QRect(242, 316, 60, 20))
+        self.btn_apply.setStyleSheet("background-color: rgb(48, 71, 140);\n"
+"color: rgb(242, 242, 242);")
+        self.btn_apply.setObjectName("btn_apply")
+        self.widget_2 = QtWidgets.QWidget(self.centralwidget)
+        self.widget_2.setGeometry(QtCore.QRect(16, 166, 286, 140))
+        self.widget_2.setStyleSheet("background-color: rgb(196, 196, 196);")
+        self.widget_2.setObjectName("widget_2")
+        self.label_5 = QtWidgets.QLabel(self.widget_2)
+        self.label_5.setGeometry(QtCore.QRect(10, 10, 60, 20))
+        font = QtGui.QFont()
+        font.setPointSize(10)
+        self.label_5.setFont(font)
+        self.label_5.setObjectName("label_5")
+        self.label_6 = QtWidgets.QLabel(self.widget_2)
+        self.label_6.setGeometry(QtCore.QRect(20, 40, 92, 20))
+        font = QtGui.QFont()
+        font.setPointSize(10)
+        self.label_6.setFont(font)
+        self.label_6.setObjectName("label_6")
+        self.label_7 = QtWidgets.QLabel(self.widget_2)
+        self.label_7.setGeometry(QtCore.QRect(20, 70, 92, 20))
+        font = QtGui.QFont()
+        font.setPointSize(10)
+        self.label_7.setFont(font)
+        self.label_7.setObjectName("label_7")
+        self.comboBox_loss_4 = QtWidgets.QComboBox(self.widget_2)
+        self.comboBox_loss_4.setGeometry(QtCore.QRect(120, 40, 132, 20))
+        self.comboBox_loss_4.setStyleSheet("background-color: rgb(242, 242, 242);")
+        self.comboBox_loss_4.setObjectName("comboBox_loss_4")
+        self.comboBox_loss_5 = QtWidgets.QComboBox(self.widget_2)
+        self.comboBox_loss_5.setGeometry(QtCore.QRect(120, 70, 132, 20))
+        self.comboBox_loss_5.setStyleSheet("background-color: rgb(242, 242, 242);")
+        self.comboBox_loss_5.setObjectName("comboBox_loss_5")
+        MainWindow.setCentralWidget(self.centralwidget)
+
+        self.retranslateUi(MainWindow)
+        QtCore.QMetaObject.connectSlotsByName(MainWindow)
+
+    def retranslateUi(self, MainWindow):
+        _translate = QtCore.QCoreApplication.translate
+        MainWindow.setWindowTitle(_translate("MainWindow", "New weights "))
+        self.label.setText(_translate("MainWindow", "Compile"))
+        self.label_2.setText(_translate("MainWindow", "Loss functions"))
+        self.label_3.setText(_translate("MainWindow", "Optimizer"))
+        self.label_4.setText(_translate("MainWindow", "Loss functions"))
+        self.btn_load.setText(_translate("MainWindow", "Load"))
+        self.btn_save.setText(_translate("MainWindow", "Save"))
+        self.btn_apply.setText(_translate("MainWindow", "Apply"))
+        self.label_5.setText(_translate("MainWindow", "Training"))
+        self.label_6.setText(_translate("MainWindow", "Epochs"))
+        self.label_7.setText(_translate("MainWindow", "Batch size"))
+
+
+
+
+if __name__ == "__main__":
+    import sys
+    app = QtWidgets.QApplication(sys.argv)
+    MainWindow = QtWidgets.QMainWindow()
+    ui = Ui_NWWindow()
+    ui.setupUi(MainWindow)
+    MainWindow.show()
+    sys.exit(app.exec_())
