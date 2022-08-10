@@ -6,6 +6,7 @@ import json
 import pickle
 import time
 import copy
+import matplotlib
 import numpy as num
 from datetime import datetime
 from PIL import Image
@@ -37,6 +38,8 @@ from PyQt5.QtCore import *
 import time
 import traceback, sys
 
+from pyqtgraph import PlotWidget, plot
+import pyqtgraph as pg
 
 class WorkerSignals(QObject):
     finished = pyqtSignal()
@@ -46,6 +49,7 @@ class WorkerSignals(QObject):
 
 
 class Worker(QRunnable):
+    finished = pyqtSignal()
     def __init__(self, fn, *args, **kwargs):
         super(Worker, self).__init__()
 
@@ -114,7 +118,7 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
         self.data = {}
         self.translate_ui()
         self.init_signals()
-
+        self.gpu_disponivel()
         self.threadpool = QThreadPool()
 
     def init_signals(self):
@@ -270,6 +274,12 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
     def add_log(self, text):
         for plainText in self.logs:
             plainText.insertPlainText(text)
+
+    def gpu_disponivel(self):
+        gpus=torch.cuda.device_count()
+        print("UEUEUE",gpus)
+        for x in range(torch.cuda.device_count()):
+            self.ui.comboBox_gpu.addItem(torch.cuda.get_device_name(x))
     
     def open_browse(self, line, tab_name, type_folder):
         #path = QtWidgets.QFileDialog.getExistingDirectory(self, 'Select a source directory:', expanduser('~'))
@@ -379,6 +389,8 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
                 #pass
 
     def fineTuning(self,epoch):
+        accurate=[]
+        epochs=[]
         minvalid_loss = num.inf
         for i in range(epoch):
             num_correct=0.0
@@ -388,7 +400,7 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
             for data, label in self.trainDataloader:
                 if torch.cuda.is_available():
                     data, label = data.cuda(), label.cuda()
-                
+
                 self.optimizer.zero_grad()
                 targets = self.model(data)
                 #print("\n\n\n",len(targets),"\n",len(label),"\n\n\n")
@@ -414,15 +426,21 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
                 testloss = loss.item() * data.size(0)
             running_accuracy /= len(self.testDataloader)
 
-            print(f'Epoch {i+1} \t\t Training data: {trainloss / len(self.trainDataloader)} \t\t Test data: {testloss / len(self.testDataloader)} \t\t Acurácia: {running_accuracy}')
+            #print(f'Epoch {i+1} \t\t Training data: {trainloss / len(self.trainDataloader)} \t\t Test data: {testloss / len(self.testDataloader)} \t\t Acurácia: {running_accuracy}')
             print(f'Epoch {i+1} \t\t Calculate {num_correct} / {num_samples} \t\t\t\t Acurácia: {float(num_correct/num_samples)}')
+            
+            accurate.append(float(num_correct/num_samples))
+            epochs.append(i)
+
+
             log="Acurácia: "+str(float(num_correct/num_samples))+'\n'
-            #self.ui.plainTextEdit_log2.insertPlainText(log)
+            self.ui.plainTextEdit_log1.insertPlainText(log)
             if minvalid_loss > testloss:
                 print(f'Test data Decreased({minvalid_loss:.6f}--->{testloss:.6f}) \t Saving The Model')
                 self.save(self.model)
                 minvalid_loss = testloss
-    
+        #Atualiza gráfico
+        #self.plot_graph(epochs,accurate)
     
     def save(self,model):
         path = self.output
@@ -623,64 +641,64 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
 
             epoch_number += 1   
     
+    def plot_graph(self,x,y):
+        grafico=PlotWidget()
+        layout = QGridLayout()
+        self.ui.widget_monitor.setLayout(layout)
+        grafico.plot(x,y, pen=None, symbol='o')
+        layout.addWidget(grafico)
+
     def print_output(self, s):
         print(s)
-
-    def oh_no(self,epochs):
-        # Pass the function to execute
-        worker = Worker(self.fineTuning(epochs)) # Any other args, kwargs are passed to the run function
-        worker.signals.result.connect(self.print_output)
-        worker.signals.finished.connect()
-        worker.signals.progress.connect()
-
-        # Execute
-        self.threadpool.start(worker)
     
 
     def run(self):
-        
-        
-        if(self.ui.radio_btn_ft.isChecked()):
-            epochs=self.controlFineTuning.ui.spinBox_epochs.value()
-            batch_size=self.controlFineTuning.ui.spinBox_batch_size.value()
-            selected_CNN = self.checkedItems(self.ui.listWidget_arch)
-            self.model=self.get_model(selected_CNN[0],pretrained=True)
-            self.loss_fn=self.select_loss(self.controlFineTuning.ui.comboBox_loss.currentText())
-            self.optimizer=self.get_optimizer(self.controlFineTuning.ui.comboBox_opt.currentText())
-            self.load_dataloader(batch_size)
-            self.ui.plainTextEdit_log1.insertPlainText("VAMOS AO PROCESSAMENTO..")
-            print("VAMOS AO PROCESSAMENTO..\n")
-            
-            
-        if(self.ui.radio_btn_nw.isChecked()):
-            epochs=self.controlNewWeights.ui.spinBox_epochs.value()
-            batch_size=self.controlNewWeights.ui.spinBox_batch_size.value()
-            selected_CNN = self.checkedItems(self.ui.listWidget_arch)
-            self.model=self.get_model(selected_CNN[0],pretrained=True)
-            self.loss_fn=self.select_loss(self.controlNewWeights.ui.comboBox_loss.currentText())
-            self.optimizer=self.get_optimizer(self.controlNewWeights.ui.comboBox_optimizer.currentText())
-            self.load_dataloader(batch_size)
-            print("VAMOS AO PROCESSAMENTO..\n")
-            self.newweights(epochs)
-            print("NewWeights")
-        if(self.ui.radio_btn_pt.isChecked()):
-            epochs=10
-            batch_size=8
-            selected_CNN = self.checkedItems(self.ui.listWidget_arch)
-            self.model=self.get_model(selected_CNN[0],pretrained=True)
-            self.loss_fn=self.select_loss("CrossEntropyLoss")
-            self.optimizer="Adam"
-            self.load_dataloader(batch_size)
-            print("VAMOS AO PROCESSAMENTO..\n")
-            self.pretrained(epochs)
-        
-        t1=threading.Thread(target=Worker(self.fineTuning(epochs)))
-        t2=threading.Thread(target=Worker(self.pretrained(epochs)))
-        t1.start()
-        t2.start()
-
-        t1.join()
-        t2.join()
+        selected_CNN = self.checkedItems(self.ui.listWidget_arch)
+        for i in range(len(selected_CNN)):
+            if(self.ui.radio_btn_ft.isChecked()):
+                epochs=self.controlFineTuning.ui.spinBox_epochs.value()
+                batch_size=self.controlFineTuning.ui.spinBox_batch_size.value()
+                self.model=self.get_model(selected_CNN[i],pretrained=True)
+                self.loss_fn=self.select_loss(self.controlFineTuning.ui.comboBox_loss.currentText())
+                self.optimizer=self.get_optimizer(self.controlFineTuning.ui.comboBox_opt.currentText())
+                self.load_dataloader(batch_size)
+                self.ui.plainTextEdit_log1.insertPlainText("VAMOS AO PROCESSAMENTO("+selected_CNN[i]+")\n")
+                print("VAMOS AO PROCESSAMENTO("+selected_CNN[i]+")\n")
+                self.thread=QThread()
+                thread=threading.Thread(target=self.fineTuning,args=(epochs,))
+                thread.start()
+                thread.join()
+                #self.worker=Worker(self.fineTuning,args=(epochs,))
+                #self.worker.moveToThread(self.thread)
+                #self.thread.started.connect(self.worker.run)
+                #self.worker.finished.connect(self.thread.quit)
+                #self.worker.finished.connect(self.worker.deleteLater)
+                #self.thread.finished.connect(self.thread.deleteLater)
+                #self.thread.start()
+                #self.fineTuning(epochs)
+                
+                
+            if(self.ui.radio_btn_nw.isChecked()):
+                epochs=self.controlNewWeights.ui.spinBox_epochs.value()
+                batch_size=self.controlNewWeights.ui.spinBox_batch_size.value()
+                selected_CNN = self.checkedItems(self.ui.listWidget_arch)
+                self.model=self.get_model(selected_CNN[i],pretrained=True)
+                self.loss_fn=self.select_loss(self.controlNewWeights.ui.comboBox_loss.currentText())
+                self.optimizer=self.get_optimizer(self.controlNewWeights.ui.comboBox_optimizer.currentText())
+                self.load_dataloader(batch_size)
+                print("VAMOS AO PROCESSAMENTO..\n")
+                self.newweights(epochs)
+                print("NewWeights")
+            if(self.ui.radio_btn_pt.isChecked()):
+                epochs=10
+                batch_size=8
+                selected_CNN = self.checkedItems(self.ui.listWidget_arch)
+                self.model=self.get_model(selected_CNN[i],pretrained=True)
+                self.loss_fn=self.select_loss("CrossEntropyLoss")
+                self.optimizer="Adam"
+                self.load_dataloader(batch_size)
+                print("VAMOS AO PROCESSAMENTO..\n")
+                self.pretrained(epochs)
             
         #self.test()
         #print(selected_CNN[0])
