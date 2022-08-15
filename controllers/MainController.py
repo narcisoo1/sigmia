@@ -99,7 +99,7 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
         self.dataloaders=None
         self.trainDataloader=None
         self.testDataloader=None
-        self.model=None
+        self.model=[]
         self.data_dir = None
         self.data_iter=None
         self.dataset = None
@@ -276,11 +276,19 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
             plainText.insertPlainText(text)
 
     def gpu_disponivel(self):
-        gpus=torch.cuda.device_count()
-        print("UEUEUE",gpus)
         for x in range(torch.cuda.device_count()):
             self.ui.comboBox_gpu.addItem(torch.cuda.get_device_name(x))
     
+    def device(self):
+        if(self.ui.comboBox_gpu.currentText() == "Do Not Use"):
+            return "cpu"
+        else:
+            for x in range(torch.cuda.device_count()):
+                if (self.ui.comboBox_gpu.currentText() == torch.cuda.get_device_name(x)):
+                    device="cuda:"+str(x)
+                    return str("cuda:"+str(x))
+
+
     def open_browse(self, line, tab_name, type_folder):
         #path = QtWidgets.QFileDialog.getExistingDirectory(self, 'Select a source directory:', expanduser('~'))
         path = QtWidgets.QFileDialog.getExistingDirectory(self)
@@ -328,6 +336,7 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
             for data, label in self.trainDataloader:
                 if torch.cuda.is_available():
                     data, label = data.cuda(), label.cuda()
+                    self.model.to('cuda')
                 
                 self.optimizer.zero_grad()
                 targets = self.model(data)
@@ -344,6 +353,7 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
             for data, label in self.testDataloader:
                 if torch.cuda.is_available():
                     data, label = data.cuda(), label.cuda()
+                    self.model.to('cuda')
                 
                 targets = self.model(data)
                 running_accuracy += self.accuracy(targets,label)
@@ -372,6 +382,7 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
                 #print("\nRODOU\n")
                 if torch.cuda.is_available():
                     data, label = data.cuda(), label.cuda()
+                    self.model.to('cuda')
                 
                 targets = self.model(data)
                 _, predictions = targets.max(1)
@@ -388,59 +399,71 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
                 #minvalid_loss = testloss
                 #pass
 
-    def fineTuning(self,epoch):
+    def fineTuning(self,epoch,device,models):
         accurate=[]
         epochs=[]
         minvalid_loss = num.inf
-        for i in range(epoch):
-            num_correct=0.0
-            num_samples=0.0
-            trainloss = 0.0
-            self.model.train()     
-            for data, label in self.trainDataloader:
-                if torch.cuda.is_available():
-                    data, label = data.cuda(), label.cuda()
 
-                self.optimizer.zero_grad()
-                targets = self.model(data)
-                #print("\n\n\n",len(targets),"\n",len(label),"\n\n\n")
-                #label = torch.nn.functional.one_hot(label)
-                loss = self.loss_fn(targets,label)
-                loss.backward()
-                self.optimizer.step()
-                trainloss += loss.item()
-            
-            testloss = 0.0
-            self.model.eval()
-            running_accuracy = 0.00    
-            for data, label in self.testDataloader:
-                if torch.cuda.is_available():
-                    data, label = data.cuda(), label.cuda()
+        for j in range(len(models)):
+            x=0
+            self.ui.plainTextEdit_log1.insertPlainText("VAMOS AO PROCESSAMENTO("+models[x]+")\n")
+            self.model.append(self.get_model(models[x],pretrained=True))
+            self.optimizer=self.get_optimizer(self.controlFineTuning.ui.comboBox_opt.currentText(),self.model[x])
+
+            for i in range(epoch):
+                #torch.cuda.empty_cache()
+                num_correct=0.0
+                num_samples=0.0
+                trainloss = 0.0
+                self.model[x].train()     
+                for data, label in self.trainDataloader:
+                    
+                    data, label = data.to(device), label.to(device)
+                    self.model[x].to(device)
+
+                    self.optimizer.zero_grad()
+                    targets = self.model[x](data)
+                    #print("\n\n\n",len(targets),"\n",len(label),"\n\n\n")
+                    #label = torch.nn.functional.one_hot(label)
+                    loss = self.loss_fn(targets,label)
+                    loss.backward()
+                    self.optimizer.step()
+                    trainloss += loss.item()
                 
-                targets = self.model(data)
-                running_accuracy += self.accuracy(targets,label)
-                _, predictions = targets.max(1)
-                num_correct += (predictions == label).sum()
-                num_samples += predictions.size(0)
-                loss = self.loss_fn(targets,label)
-                testloss = loss.item() * data.size(0)
-            running_accuracy /= len(self.testDataloader)
+                testloss = 0.0
+                self.model[x].eval()
+                running_accuracy = 0.00    
+                for data, label in self.testDataloader:
+                    if torch.cuda.is_available():
+                        data, label = data.to(device), label.to(device)
+                        self.model[x].to(device)
+                    
+                    targets = self.model[x](data)
+                    running_accuracy += self.accuracy(targets,label)
+                    _, predictions = targets.max(1)
+                    num_correct += (predictions == label).sum()
+                    num_samples += predictions.size(0)
+                    loss = self.loss_fn(targets,label)
+                    testloss = loss.item() * data.size(0)
+                running_accuracy /= len(self.testDataloader)
 
-            #print(f'Epoch {i+1} \t\t Training data: {trainloss / len(self.trainDataloader)} \t\t Test data: {testloss / len(self.testDataloader)} \t\t Acurácia: {running_accuracy}')
-            print(f'Epoch {i+1} \t\t Calculate {num_correct} / {num_samples} \t\t\t\t Acurácia: {float(num_correct/num_samples)}')
-            
-            accurate.append(float(num_correct/num_samples))
-            epochs.append(i)
+                #print(f'Epoch {i+1} \t\t Training data: {trainloss / len(self.trainDataloader)} \t\t Test data: {testloss / len(self.testDataloader)} \t\t Acurácia: {running_accuracy}')
+                print(f'Epoch {i+1} \t\t Calculate {num_correct} / {num_samples} \t\t\t\t Acurácia: {float(num_correct/num_samples)}')
+                
+                accurate.append(float(num_correct/num_samples))
+                epochs.append(i)
 
 
-            log="Acurácia: "+str(float(num_correct/num_samples))+'\n'
-            self.ui.plainTextEdit_log1.insertPlainText(log)
-            if minvalid_loss > testloss:
-                print(f'Test data Decreased({minvalid_loss:.6f}--->{testloss:.6f}) \t Saving The Model')
-                self.save(self.model)
-                minvalid_loss = testloss
-        #Atualiza gráfico
-        #self.plot_graph(epochs,accurate)
+                log="Acurácia: "+str(float(num_correct/num_samples))+'\n'
+                self.ui.plainTextEdit_log1.insertPlainText(log)
+                if minvalid_loss > testloss:
+                    print(f'Test data Decreased({minvalid_loss:.6f}--->{testloss:.6f}) \t Saving The Model')
+                    self.save(self.model[x])
+                    minvalid_loss = testloss
+            #Atualiza gráfico
+            #self.plot_graph(epochs,accurate)
+            models.pop(0)
+            del (self.model[x])
     
     def save(self,model):
         path = self.output
@@ -502,11 +525,11 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
                 selected.append(item.text())
         return selected
     
-    def get_optimizer(self,optimizer_name):
+    def get_optimizer(self,optimizer_name,model):
         if(optimizer_name=="Adam"):
-            otimizador = torch.optim.Adam(self.model.parameters())
+            otimizador = torch.optim.Adam(model.parameters())
         if(optimizer_name=="SGD"):
-            otimizador = torch.optim.SGD(self.model.parameters())
+            otimizador = torch.optim.SGD(model.parameters())
         return otimizador
     
     def get_model(self,model_name,pretrained):
@@ -653,21 +676,19 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
     
 
     def run(self):
+        device=self.device()
         selected_CNN = self.checkedItems(self.ui.listWidget_arch)
-        for i in range(len(selected_CNN)):
+        for i in range(0,1):
             if(self.ui.radio_btn_ft.isChecked()):
                 epochs=self.controlFineTuning.ui.spinBox_epochs.value()
                 batch_size=self.controlFineTuning.ui.spinBox_batch_size.value()
-                self.model=self.get_model(selected_CNN[i],pretrained=True)
+                #self.model=self.get_model(selected_CNN[i],pretrained=True)
                 self.loss_fn=self.select_loss(self.controlFineTuning.ui.comboBox_loss.currentText())
-                self.optimizer=self.get_optimizer(self.controlFineTuning.ui.comboBox_opt.currentText())
                 self.load_dataloader(batch_size)
-                self.ui.plainTextEdit_log1.insertPlainText("VAMOS AO PROCESSAMENTO("+selected_CNN[i]+")\n")
                 print("VAMOS AO PROCESSAMENTO("+selected_CNN[i]+")\n")
                 self.thread=QThread()
-                thread=threading.Thread(target=self.fineTuning,args=(epochs,))
+                thread=threading.Thread(target=self.fineTuning,args=(epochs,device,selected_CNN,))
                 thread.start()
-                thread.join()
                 #self.worker=Worker(self.fineTuning,args=(epochs,))
                 #self.worker.moveToThread(self.thread)
                 #self.thread.started.connect(self.worker.run)

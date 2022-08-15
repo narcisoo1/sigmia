@@ -12,9 +12,6 @@
     "GoogleNet" : {
       "Args": ""
     },
-    "Inception_V3" : {
-      "Args": ""
-    },
     "ResNet101" : {
       "Args": ""
     },
