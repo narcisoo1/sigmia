@@ -41,6 +41,10 @@ import traceback, sys
 from pyqtgraph import PlotWidget, plot
 import pyqtgraph as pg
 
+
+import numpy as np
+import pandas as pd
+
 class WorkerSignals(QObject):
     finished = pyqtSignal()
     error = pyqtSignal(tuple)
@@ -458,17 +462,18 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
                 self.ui.plainTextEdit_log1.insertPlainText(log)
                 if minvalid_loss > testloss:
                     print(f'Test data Decreased({minvalid_loss:.6f}--->{testloss:.6f}) \t Saving The Model')
-                    self.save(self.model[x])
+                    nome=models[x]+'_'+'Fine-tuning'+'_'+self.controlFineTuning.ui.comboBox_loss.currentText()+'_'+self.controlFineTuning.ui.comboBox_opt.currentText()+'_'+self.controlFineTuning.ui.comboBox_metrics.currentText()+'_'+str(self.controlFineTuning.ui.spinBox_epochs.value())+'_'+str(self.controlFineTuning.ui.spinBox_batch_size.value())+'.pth'
+                    self.save(self.model[x],nome)
                     minvalid_loss = testloss
             #Atualiza gráfico
             #self.plot_graph(epochs,accurate)
             models.pop(0)
             del (self.model[x])
     
-    def save(self,model):
-        path = self.output
+    def save(self,model,nome):
+        path = self.output+'/'+nome[:-4]
         os.makedirs(path, exist_ok = True) 
-        torch.save(model.state_dict() , os.path.join(path,'teste.pth'))
+        torch.save(model.state_dict() , os.path.join(path,nome))
         print("SALVANDO EM: \n",path)
 
 
