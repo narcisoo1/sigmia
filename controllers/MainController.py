@@ -45,6 +45,14 @@ import pyqtgraph as pg
 import numpy as np
 import pandas as pd
 
+from sklearn.model_selection import KFold
+
+import gc
+
+import os
+os.environ['TF_FORCE_GPU_ALLOW_GROWTH']='true'
+pin_memory=False
+
 class WorkerSignals(QObject):
     finished = pyqtSignal()
     error = pyqtSignal(tuple)
@@ -292,8 +300,19 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
                     device="cuda:"+str(x)
                     return str("cuda:"+str(x))
 
+    def open_browse (self, line, tab_name, type_folder):
+        #path = QtWidgets.QFileDialog.getExistingDirectory(self, 'Select a source directory:', expanduser('~'))
+        path = QtWidgets.QFileDialog.getExistingDirectory(self)
+        # getOpenFileName(self, 'Open a file', '', 'All Files (*.*)')
+        if path != '':
+            if tab_name == 'cnn' and type_folder=='input_folder':
+                self.ui.line_input_1.setText(path)
+                self.input=path
+            if tab_name == 'cnn' and type_folder=='output_folder':
+                self.ui.line_output_1.setText(path)
+                self.output=path
 
-    def open_browse(self, line, tab_name, type_folder):
+    def open_browse2(self, line, tab_name, type_folder):
         #path = QtWidgets.QFileDialog.getExistingDirectory(self, 'Select a source directory:', expanduser('~'))
         path = QtWidgets.QFileDialog.getExistingDirectory(self)
         # getOpenFileName(self, 'Open a file', '', 'All Files (*.*)')
@@ -325,6 +344,51 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
         self.testDataloader=torch.utils.data.DataLoader(self.TEST, batch_size)
         samples, labels = iter(self.trainDataloader).next()
         #print("Tamanho: ",len(labels[:24]),'\n')
+
+    def kfold(self,n_splits):
+        path=self.ui.line_input_1.text()
+        image_datasets = {
+            x: datasets.ImageFolder(
+                os.path.join(path, x), 
+                transform=self.data_transforms[x]
+            )
+            for x in [self.INPUT]
+        }
+        kf = KFold(n_splits, shuffle=True)
+        train_index, test_index = next(kf.split(image_datasets['input']), None)
+        print('\n\n',train_index[1],'\n\n')
+        train=[]
+        for x in train_index:
+            train.append(image_datasets['input'][x])
+        test=[]
+        for x in test_index:
+            test.append(image_datasets['input'][x])
+        self.TRAIN, self.TEST = train,test
+        self.image_datasets=image_datasets
+        self.labels=image_datasets['input'].classes
+        self.class_names = self.labels
+        print(self.labels)
+
+    def train_test(self):
+        path=self.ui.line_input_1.text()
+        image_datasets = {
+            x: datasets.ImageFolder(
+                os.path.join(path, x), 
+                transform=self.data_transforms[x]
+            )
+            for x in [self.INPUT]
+        }
+        self.p_train=self.ui.horizontalSlider_cnn.value()/100
+        print('\n\n',self.p_train,'\n\n')
+        train_size = int(self.p_train * len(image_datasets['input']))
+        test_size = int(len(image_datasets['input'])-train_size)
+        self.TRAIN, self.TEST = torch.utils.data.random_split(image_datasets['input'], [train_size, test_size])
+        #print(len(image_datasets['input']))
+        self.image_datasets=image_datasets
+        self.labels=image_datasets['input'].classes
+        self.dataset_sizes = train_size+test_size
+        self.class_names = self.labels
+        print(self.labels)
 
     def accuracy(self,predictions, labels):
         classes = torch.argmax(predictions, dim=1)
@@ -418,41 +482,55 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
                 #torch.cuda.empty_cache()
                 num_correct=0.0
                 num_samples=0.0
-                trainloss = 0.0
-                self.model[x].train()     
+                losses_train = list()
+                accuracies_train = list()
+                losses_test = list()
+                accuracies_test = list()
+                self.model[x].train()
+                
                 for data, label in self.trainDataloader:
-                    
                     data, label = data.to(device), label.to(device)
                     self.model[x].to(device)
-
-                    self.optimizer.zero_grad()
                     targets = self.model[x](data)
-                    #print("\n\n\n",len(targets),"\n",len(label),"\n\n\n")
-                    #label = torch.nn.functional.one_hot(label)
                     loss = self.loss_fn(targets,label)
+                    accuracies_train.append(label.eq(targets.detach().argmax(dim=1)).float().mean())
+                    del data
+                    del label
+                    del targets
+                    gc.collect()
+                    torch.cuda.empty_cache()
+                    self.optimizer.zero_grad()
                     loss.backward()
                     self.optimizer.step()
-                    trainloss += loss.item()
+                    losses_train.append(loss.item())
                 
+                print(f'Epoch {i}', end=', ')
+                print(f'training loss: {torch.tensor(losses_train).mean():.2f}', end=', ')
+                print(f'training accuracy: {torch.tensor(accuracies_train).mean():.2f}')
+
                 testloss = 0.0
                 self.model[x].eval()
                 running_accuracy = 0.00    
                 for data, label in self.testDataloader:
-                    if torch.cuda.is_available():
-                        data, label = data.to(device), label.to(device)
-                        self.model[x].to(device)
-                    
-                    targets = self.model[x](data)
+                    data, label = data.to(device), label.to(device)
+                    self.model[x].to(device)
+                    with torch.no_grad(): 
+                        targets = self.model[x](data)
                     running_accuracy += self.accuracy(targets,label)
                     _, predictions = targets.max(1)
                     num_correct += (predictions == label).sum()
                     num_samples += predictions.size(0)
                     loss = self.loss_fn(targets,label)
                     testloss = loss.item() * data.size(0)
+                    losses_test.append(loss.item())
+                    accuracies_test.append(label.eq(targets.detach().argmax(dim=1)).float().mean())
+                print(f'Epoch {i}', end=', ')
+                print(f'Test loss: {torch.tensor(losses_test).mean():.2f}', end=', ')
+                print(f'Test accuracy: {torch.tensor(accuracies_test).mean():.2f}')
                 running_accuracy /= len(self.testDataloader)
 
                 #print(f'Epoch {i+1} \t\t Training data: {trainloss / len(self.trainDataloader)} \t\t Test data: {testloss / len(self.testDataloader)} \t\t Acurácia: {running_accuracy}')
-                print(f'Epoch {i+1} \t\t Calculate {num_correct} / {num_samples} \t\t\t\t Acurácia: {float(num_correct/num_samples)}')
+                #print(f'\nEpoch {i+1} \t\t Calculate {num_correct} / {num_samples} \t\t\t\t Acurácia: {float(num_correct/num_samples)}\n')
                 
                 accurate.append(float(num_correct/num_samples))
                 epochs.append(i)
@@ -681,16 +759,30 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
     
 
     def run(self):
-        device=self.device()
+        self.ui.plainTextEdit_log1.clear()
         selected_CNN = self.checkedItems(self.ui.listWidget_arch)
-        for i in range(0,1):
+        if(self.ui.radio_btn_tt_cnn.isChecked()==False and self.ui.radio_btn_kf_cnn.isChecked()==False):
+            self.ui.plainTextEdit_log1.insertPlainText("Configure o Treino e Teste ou K-Fold!\n")
+        elif(self.ui.line_input_1.text() == ''):
+            self.ui.plainTextEdit_log1.insertPlainText("Adicione a pasta de entrada!\n")
+        elif(self.ui.line_output_1.text() == ''):
+            self.ui.plainTextEdit_log1.insertPlainText("Adicione a pasta de saída!\n")
+        elif(len(selected_CNN)==0):
+            self.ui.plainTextEdit_log1.insertPlainText("Selecione ao menos 1 modelo!\n")
+        elif(self.ui.radio_btn_ft.isChecked()==False and self.ui.radio_btn_nw.isChecked()==False and self.ui.radio_btn_pt.isChecked()==False):
+            self.ui.plainTextEdit_log1.insertPlainText("Selecione o setup de execução!\n")
+        else:
+            device=self.device()
             if(self.ui.radio_btn_ft.isChecked()):
+                if(self.ui.radio_btn_tt_cnn.isChecked()):
+                    self.train_test()
+                else:
+                    self.kfold(int(self.ui.spinBox_cnn_kf.text()))
                 epochs=self.controlFineTuning.ui.spinBox_epochs.value()
                 batch_size=self.controlFineTuning.ui.spinBox_batch_size.value()
                 #self.model=self.get_model(selected_CNN[i],pretrained=True)
                 self.loss_fn=self.select_loss(self.controlFineTuning.ui.comboBox_loss.currentText())
                 self.load_dataloader(batch_size)
-                print("VAMOS AO PROCESSAMENTO("+selected_CNN[i]+")\n")
                 self.thread=QThread()
                 thread=threading.Thread(target=self.fineTuning,args=(epochs,device,selected_CNN,))
                 thread.start()

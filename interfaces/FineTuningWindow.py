@@ -90,6 +90,7 @@ class Ui_MainWindow(object):
         self.spinBox_batch_size = QtWidgets.QSpinBox(self.widget_3)
         self.spinBox_batch_size.setGeometry(QtCore.QRect(121, 70, 132, 20))
         self.spinBox_batch_size.setStyleSheet("background-color: rgb(242, 242, 242);")
+        self.spinBox_batch_size.setMinimum(1)
         self.spinBox_batch_size.setMaximum(99999999)
         self.spinBox_batch_size.setObjectName("spinBox_batch_size")
         self.btn_load = QtWidgets.QPushButton(self.centralwidget)
