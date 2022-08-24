@@ -1,5 +1,8 @@
 {
   "applications": {
+    "AlexNet" : {
+      "Args": ""
+    },
     "DenseNet121" : {
       "Args": ""
     },
@@ -10,6 +13,9 @@
       "Args": ""
     },
     "GoogleNet" : {
+      "Args": ""
+    },
+    "ResNet18" : {
       "Args": ""
     },
     "ResNet101" : {

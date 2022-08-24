@@ -53,6 +53,22 @@ import os
 os.environ['TF_FORCE_GPU_ALLOW_GROWTH']='true'
 pin_memory=False
 
+
+# Bar Graph class
+class BarGraphItem(pg.BarGraphItem):
+ 
+    # constructor which inherit original
+    # BarGraphItem
+    def __init__(self, *args, **kwargs):
+        pg.BarGraphItem.__init__(self, *args, **kwargs)
+ 
+    # creating a mouse double click event
+    def mouseDoubleClickEvent(self, e):
+ 
+        # setting scale
+        self.setScale(0.2)
+
+
 class WorkerSignals(QObject):
     finished = pyqtSignal()
     error = pyqtSignal(tuple)
@@ -371,21 +387,15 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
 
     def train_test(self):
         path=self.ui.line_input_1.text()
-        image_datasets = {
-            x: datasets.ImageFolder(
-                os.path.join(path, x), 
-                transform=self.data_transforms[x]
-            )
-            for x in [self.INPUT]
-        }
+        image_datasets = datasets.ImageFolder(os.path.join(path),transform=self.dt_transforms())
         self.p_train=self.ui.horizontalSlider_cnn.value()/100
-        print('\n\n',self.p_train,'\n\n')
-        train_size = int(self.p_train * len(image_datasets['input']))
-        test_size = int(len(image_datasets['input'])-train_size)
-        self.TRAIN, self.TEST = torch.utils.data.random_split(image_datasets['input'], [train_size, test_size])
+        print('\n\n',len(image_datasets),'\n\n')
+        train_size = int(self.p_train * len(image_datasets))
+        test_size = int(len(image_datasets)-train_size)
+        self.TRAIN, self.TEST = torch.utils.data.random_split(image_datasets, [train_size, test_size])
         #print(len(image_datasets['input']))
         self.image_datasets=image_datasets
-        self.labels=image_datasets['input'].classes
+        self.labels=image_datasets.classes
         self.dataset_sizes = train_size+test_size
         self.class_names = self.labels
         print(self.labels)
@@ -470,13 +480,15 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
     def fineTuning(self,epoch,device,models):
         accurate=[]
         epochs=[]
-        minvalid_loss = num.inf
-
+        teste=list()
+        #self.UiComponents(1,['ue'],[5])
         for j in range(len(models)):
+            minvalid_loss = None
             x=0
             self.ui.plainTextEdit_log1.insertPlainText("VAMOS AO PROCESSAMENTO("+models[x]+")\n")
             self.model.append(self.get_model(models[x],pretrained=True))
             self.optimizer=self.get_optimizer(self.controlFineTuning.ui.comboBox_opt.currentText(),self.model[x])
+            teste.append([])
 
             for i in range(epoch):
                 #torch.cuda.empty_cache()
@@ -486,6 +498,7 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
                 accuracies_train = list()
                 losses_test = list()
                 accuracies_test = list()
+                #self.model[x].fc= nn.Linear(512, 10)
                 self.model[x].train()
                 
                 for data, label in self.trainDataloader:
@@ -504,10 +517,11 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
                     self.optimizer.step()
                     losses_train.append(loss.item())
                 
+                teste[j].append(float(torch.tensor(accuracies_train).mean()))
                 print(f'Epoch {i}', end=', ')
                 print(f'training loss: {torch.tensor(losses_train).mean():.2f}', end=', ')
                 print(f'training accuracy: {torch.tensor(accuracies_train).mean():.2f}')
-
+                
                 testloss = 0.0
                 self.model[x].eval()
                 running_accuracy = 0.00    
@@ -524,6 +538,11 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
                     testloss = loss.item() * data.size(0)
                     losses_test.append(loss.item())
                     accuracies_test.append(label.eq(targets.detach().argmax(dim=1)).float().mean())
+                    del data
+                    del label
+                    del targets
+                    gc.collect()
+                    torch.cuda.empty_cache()
                 print(f'Epoch {i}', end=', ')
                 print(f'Test loss: {torch.tensor(losses_test).mean():.2f}', end=', ')
                 print(f'Test accuracy: {torch.tensor(accuracies_test).mean():.2f}')
@@ -538,9 +557,19 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
 
                 log="Acurácia: "+str(float(num_correct/num_samples))+'\n'
                 self.ui.plainTextEdit_log1.insertPlainText(log)
+                
+                if minvalid_loss == None:
+                    minvalid_loss=testloss
+                
                 if minvalid_loss > testloss:
+                    trainTestORKFold=None
+                    if(self.ui.radio_btn_tt_cnn.isChecked()):
+                        trainTestORKFold="tt"+self.ui.spinBox_cnn_train.text()
+                    elif(self.ui.radio_btn_kf_cnn.isChecked()):
+                        trainTestORKFold="kf"+self.ui.radio_btn_kf_cnn.text()
+
                     print(f'Test data Decreased({minvalid_loss:.6f}--->{testloss:.6f}) \t Saving The Model')
-                    nome=models[x]+'_'+'Fine-tuning'+'_'+self.controlFineTuning.ui.comboBox_loss.currentText()+'_'+self.controlFineTuning.ui.comboBox_opt.currentText()+'_'+self.controlFineTuning.ui.comboBox_metrics.currentText()+'_'+str(self.controlFineTuning.ui.spinBox_epochs.value())+'_'+str(self.controlFineTuning.ui.spinBox_batch_size.value())+'.pth'
+                    nome=models[x]+'_'+'Fine-tuning'+'_'+self.controlFineTuning.ui.comboBox_loss.currentText()+'_'+self.controlFineTuning.ui.comboBox_opt.currentText()+'_'+self.controlFineTuning.ui.comboBox_metrics.currentText()+'_'+str(self.controlFineTuning.ui.spinBox_epochs.value())+'_'+str(self.controlFineTuning.ui.spinBox_batch_size.value())+'_'+trainTestORKFold+'.pth'
                     self.save(self.model[x],nome)
                     minvalid_loss = testloss
             #Atualiza gráfico
@@ -612,7 +641,7 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
         if(optimizer_name=="Adam"):
             otimizador = torch.optim.Adam(model.parameters())
         if(optimizer_name=="SGD"):
-            otimizador = torch.optim.SGD(model.parameters())
+            otimizador = torch.optim.SGD(model.parameters(),lr=1e-2)
         return otimizador
     
     def get_model(self,model_name,pretrained):
@@ -620,35 +649,12 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
         return model
 
     def dt_transforms(self):
-        data_transforms = {
-            self.TRAIN: transforms.Compose([
-                # Data augmentation is a good practice for the train set
-                # Here, we randomly crop the image to 224x224 and
-                # randomly flip it horizontally. 
-                transforms.RandomResizedCrop(224),
-                transforms.RandomHorizontalFlip(),
-                transforms.ToTensor(),
-            ]),
-            self.VAL: transforms.Compose([
-                transforms.Resize(256),
-                transforms.CenterCrop(224),
-                transforms.ToTensor(),
-            ]),
-            self.TEST: transforms.Compose([
-                transforms.Resize(256),
-                transforms.CenterCrop(224),
-                transforms.ToTensor(),
-            ]),
-            self.INPUT: transforms.Compose([
-                # Data augmentation is a good practice for the train set
-                # Here, we randomly crop the image to 224x224 and
-                # randomly flip it horizontally. 
-                transforms.RandomResizedCrop(224),
-                transforms.RandomHorizontalFlip(),
-                transforms.ToTensor(),
-            ]),
-        }
-        return data_transforms
+        T = transforms.Compose([
+            transforms.Resize((224,224)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ])
+        return T
 
     def select_loss(self,loss_name):
         if (loss_name=="BCEWithLogitsLoss"):
@@ -759,6 +765,11 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
     
 
     def run(self):
+        torch.cuda.empty_cache()
+        gc.collect()
+        if(self.model!= [] or self.model != None):
+            del self.model
+            self.model=[]
         self.ui.plainTextEdit_log1.clear()
         selected_CNN = self.checkedItems(self.ui.listWidget_arch)
         if(self.ui.radio_btn_tt_cnn.isChecked()==False and self.ui.radio_btn_kf_cnn.isChecked()==False):
@@ -775,6 +786,10 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
             device=self.device()
             if(self.ui.radio_btn_ft.isChecked()):
                 if(self.ui.radio_btn_tt_cnn.isChecked()):
+                    del self.image_datasets
+                    del self.labels
+                    del self.dataset_sizes 
+                    del self.class_names
                     self.train_test()
                 else:
                     self.kfold(int(self.ui.spinBox_cnn_kf.text()))
@@ -818,15 +833,72 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
                 print("VAMOS AO PROCESSAMENTO..\n")
                 self.pretrained(epochs)
             
-        #self.test()
-        #print(selected_CNN[0])
-        
-        #print(self.model)
-        #self.optimizer=self.otimizador()
-        #self.eval()
-        #print("TREINAR E AVALIAR...")
-        #print(self.ui.radio_btn_ft.isChecked())
 
+
+    def UiComponents(self,epochs,models,values):
+        
+        # creating a widget object
+        widget = QWidget()
+ 
+        # creating a new label
+        label = QLabel()
+ 
+        # making it multiline
+        #label.setWordWrap(True)
+ 
+        x = range(0, 1)
+ 
+        # create plot window object
+        plt = pg.plot()
+ 
+        # showing x and y grids
+        plt.showGrid(x = True, y = True)
+ 
+        # adding legend
+        plt.addLegend()
+ 
+        # set properties of the label for y axis
+        plt.setLabel('left', 'Vertical Values', units ='y')
+ 
+        # set properties of the label for x axis
+        plt.setLabel('bottom', 'Horizontal Values', units ='s')
+ 
+        # setting horizontal range
+        plt.setXRange(0, 10)
+ 
+        # setting vertical range
+        plt.setYRange(0, 20)
+
+        for x in range(1):
+                line = plt.plot([0,1,2,3,4], [2,5,3,7,9], pen ='g', symbol ='x', symbolPen ='g', symbolBrush = 0.2, name ='green')
+        # plotting line in green color
+        # with dot symbol as x, not a mandatory field
+        #line1 = plt.plot(x, y, pen ='g', symbol ='x', symbolPen ='g', symbolBrush = 0.2, name ='green')
+ 
+        # plotting line2 with blue color
+        # with dot symbol as o
+        #line2 = plt.plot(x, y2, pen ='b', symbol ='o', symbolPen ='b', symbolBrush = 0.2, name ='blue')
+ 
+        # getting data  of the line 1
+        #value = line1.getData()
+ 
+        # setting text to the label
+        #label.setText("_________Line1_Data_______: " + str(value))
+ 
+        # Creating a grid layout
+        layout = QGridLayout()
+ 
+        # setting this layout to the widget
+        self.ui.widget_monitor.setLayout(layout)
+ 
+        # adding label to the layout
+        #layout.addWidget(label, 1, 0)
+ 
+        # plot window goes on right side, spanning 3 rows
+        layout.addWidget(plt)
+ 
+        # setting this widget as central widget of the main window
+        #self.setCentralWidget(self.ui.widget_monitor)
 
         
     
