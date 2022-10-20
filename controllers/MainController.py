@@ -1,3 +1,4 @@
+from importlib.util import LazyLoader
 import sys
 import os
 from os.path import expanduser
@@ -10,6 +11,7 @@ import matplotlib
 import numpy as num
 from datetime import datetime
 from PIL import Image
+
 from torch.optim import lr_scheduler
 import torch.nn as nn
 import torch.optim as optim
@@ -22,6 +24,13 @@ import torchvision.transforms as transforms
 import torchvision.models as models
 from torchvision import datasets, models, transforms
 from torch.utils.tensorboard import SummaryWriter
+from torchvision.models.feature_extraction import get_graph_node_names
+from torchvision.models.feature_extraction import create_feature_extractor
+from torchvision.utils import save_image
+from torch.utils.data import Dataset, DataLoader
+
+from csv import writer
+
 from controllers.CoreCNN import CoreCNN
 from PyQt5 import QtCore, QtWidgets
 from PyQt5.QtCore import QObject, pyqtSignal, QThread, QTimer
@@ -29,6 +38,7 @@ from interfaces.MainWindow import Ui_MainWindow
 from controllers.NewWeightsController import ControlNewWeights
 from controllers.FineTuningController import ControlFineTuning
 from controllers.PreTrainedController import ControlPreTrainedWindow
+from controllers.OutputController import OutputController
 import threading
 
 from PyQt5.QtGui import *
@@ -50,8 +60,13 @@ from sklearn.model_selection import KFold
 import gc
 
 import os
+
+import glob
+
 os.environ['TF_FORCE_GPU_ALLOW_GROWTH']='true'
 pin_memory=False
+
+
 
 
 # Bar Graph class
@@ -158,6 +173,7 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
         self.controlNewWeights = ControlNewWeights()
         self.controlFineTuning = ControlFineTuning()
         self.controlPreTrainedWindow = ControlPreTrainedWindow()
+        self.controlOutput = OutputController()
 
         self.ui.btn_browser_input_1.clicked.connect(
             lambda: self.open_browse(self.ui.line_input_1, 'cnn', 'input_folder'))
@@ -307,6 +323,12 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
         for x in range(torch.cuda.device_count()):
             self.ui.comboBox_gpu.addItem(torch.cuda.get_device_name(x))
     
+    def model_layers(self,model):
+        nodes, _ = get_graph_node_names(model)
+        #retorno=nodes
+        for x in nodes:
+            self.ui.comboBox_gpu_2.addItem(torch.cuda.get_device_name(x))
+    
     def device(self):
         if(self.ui.comboBox_gpu.currentText() == "Do Not Use"):
             return "cpu"
@@ -359,6 +381,8 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
         self.trainDataloader=torch.utils.data.DataLoader(self.TRAIN, batch_size)
         self.testDataloader=torch.utils.data.DataLoader(self.TEST, batch_size)
         samples, labels = iter(self.trainDataloader).next()
+        #train_features, train_labels = next(iter(self.trainDataloader))
+        #print(train_features,train_labels)
         #print("Tamanho: ",len(labels[:24]),'\n')
 
     def kfold(self,n_splits):
@@ -389,7 +413,7 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
         path=self.ui.line_input_1.text()
         image_datasets = datasets.ImageFolder(os.path.join(path),transform=self.dt_transforms())
         self.p_train=self.ui.horizontalSlider_cnn.value()/100
-        print('\n\n',len(image_datasets),'\n\n')
+        #print('\n\n',len(image_datasets),'\n\n')
         train_size = int(self.p_train * len(image_datasets))
         test_size = int(len(image_datasets)-train_size)
         self.TRAIN, self.TEST = torch.utils.data.random_split(image_datasets, [train_size, test_size])
@@ -398,7 +422,8 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
         self.labels=image_datasets.classes
         self.dataset_sizes = train_size+test_size
         self.class_names = self.labels
-        print(self.labels)
+        #print(self.class_names[self.TRAIN[0][1]])
+        
 
     def accuracy(self,predictions, labels):
         classes = torch.argmax(predictions, dim=1)
@@ -476,17 +501,33 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
                 #self.save(self.model)
                 #minvalid_loss = testloss
                 #pass
+    
+
 
     def fineTuning(self,epoch,device,models):
+        trainTestORKFold=None
+        if(self.ui.radio_btn_tt_cnn.isChecked()):
+            trainTestORKFold="tt"+self.ui.spinBox_cnn_train.text()
+        elif(self.ui.radio_btn_kf_cnn.isChecked()):
+            trainTestORKFold="kf"+self.ui.radio_btn_kf_cnn.text()
+        
         accurate=[]
         epochs=[]
         teste=list()
+        layer=15
         #self.UiComponents(1,['ue'],[5])
         for j in range(len(models)):
-            minvalid_loss = None
+            contador_treino=0
             x=0
+            minvalid_loss = None
+            nome=models[x]+'_'+'Fine-tuning'+'_'+self.controlFineTuning.ui.comboBox_loss.currentText()+'_'+self.controlFineTuning.ui.comboBox_opt.currentText()+'_'+self.controlFineTuning.ui.comboBox_metrics.currentText()+'_'+str(self.controlFineTuning.ui.spinBox_epochs.value())+'_'+str(self.controlFineTuning.ui.spinBox_batch_size.value())+'_'+trainTestORKFold+'.pth'
+
             self.ui.plainTextEdit_log1.insertPlainText("VAMOS AO PROCESSAMENTO("+models[x]+")\n")
             self.model.append(self.get_model(models[x],pretrained=True))
+            retornos=self.nodos(self.model[x])
+            print(retornos)
+            extractor=self.feature_extraction(self.model[x])
+            print(extractor)
             self.optimizer=self.get_optimizer(self.controlFineTuning.ui.comboBox_opt.currentText(),self.model[x])
             teste.append([])
 
@@ -500,13 +541,35 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
                 accuracies_test = list()
                 #self.model[x].fc= nn.Linear(512, 10)
                 self.model[x].train()
-                
+                #print(self.trainDataloader)
+                features=[]
+                labels=[]
+                size_f=None
+                size_l=None
                 for data, label in self.trainDataloader:
+                        
                     data, label = data.to(device), label.to(device)
+                    #print(data)
                     self.model[x].to(device)
                     targets = self.model[x](data)
                     loss = self.loss_fn(targets,label)
                     accuracies_train.append(label.eq(targets.detach().argmax(dim=1)).float().mean())
+                    #self.model[x].to('cpu')
+                    #print(extractor(data)[retornos[20]].shape)
+                    
+                    #self.save_features(feature,(label.cpu()).detach().numpy(),'train',nome,contador_treino)
+                    #print(feature)
+                    #print(feature.shape)
+                    #print(20*'-')
+                    #plt.imshow(img[retornos[1]][0].transpose(0,2).sum(-1).detach().numpy())
+                    #print(features[retornos[15]].shape)
+                    #print(label)
+                    #print(20*'-')
+                    ##torch.save(img,'features.pt')
+                    ##img1=img[retornos[layer]][0].transpose(0, 2).sum(-1).detach().numpy()
+                    ##plt.imsave('tentativa92392.jpg',img1)
+                    #save_image(img[retornos[1]], 'img1.png')
+                    #np.squeeze()
                     del data
                     del label
                     del targets
@@ -516,7 +579,7 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
                     loss.backward()
                     self.optimizer.step()
                     losses_train.append(loss.item())
-                
+
                 teste[j].append(float(torch.tensor(accuracies_train).mean()))
                 print(f'Epoch {i}', end=', ')
                 print(f'training loss: {torch.tensor(losses_train).mean():.2f}', end=', ')
@@ -538,6 +601,14 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
                     testloss = loss.item() * data.size(0)
                     losses_test.append(loss.item())
                     accuracies_test.append(label.eq(targets.detach().argmax(dim=1)).float().mean())
+                    if(size_f == None and size_l==None):
+                        size_f=(((extractor(data)[retornos[14]].cpu()).float().detach().numpy())).shape
+                        size_l=((label.cpu()).detach().numpy()).shape
+                        print(size_f)
+                        print(size_l)
+                    features.append(((extractor(data)[retornos[14]].cpu()).float().detach().numpy()).reshape(-1))
+                    #features.append()
+                    labels.append(((label.cpu()).detach().numpy()).reshape(-1))
                     del data
                     del label
                     del targets
@@ -547,6 +618,9 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
                 print(f'Test loss: {torch.tensor(losses_test).mean():.2f}', end=', ')
                 print(f'Test accuracy: {torch.tensor(accuracies_test).mean():.2f}')
                 running_accuracy /= len(self.testDataloader)
+                
+                self.save_features(features,labels,'test',nome,contador_treino,size_f,size_l)
+                contador_treino+=1
 
                 #print(f'Epoch {i+1} \t\t Training data: {trainloss / len(self.trainDataloader)} \t\t Test data: {testloss / len(self.testDataloader)} \t\t Acurácia: {running_accuracy}')
                 #print(f'\nEpoch {i+1} \t\t Calculate {num_correct} / {num_samples} \t\t\t\t Acurácia: {float(num_correct/num_samples)}\n')
@@ -561,15 +635,8 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
                 if minvalid_loss == None:
                     minvalid_loss=testloss
                 
-                if minvalid_loss > testloss:
-                    trainTestORKFold=None
-                    if(self.ui.radio_btn_tt_cnn.isChecked()):
-                        trainTestORKFold="tt"+self.ui.spinBox_cnn_train.text()
-                    elif(self.ui.radio_btn_kf_cnn.isChecked()):
-                        trainTestORKFold="kf"+self.ui.radio_btn_kf_cnn.text()
-
+                if minvalid_loss >= testloss:
                     print(f'Test data Decreased({minvalid_loss:.6f}--->{testloss:.6f}) \t Saving The Model')
-                    nome=models[x]+'_'+'Fine-tuning'+'_'+self.controlFineTuning.ui.comboBox_loss.currentText()+'_'+self.controlFineTuning.ui.comboBox_opt.currentText()+'_'+self.controlFineTuning.ui.comboBox_metrics.currentText()+'_'+str(self.controlFineTuning.ui.spinBox_epochs.value())+'_'+str(self.controlFineTuning.ui.spinBox_batch_size.value())+'_'+trainTestORKFold+'.pth'
                     self.save(self.model[x],nome)
                     minvalid_loss = testloss
             #Atualiza gráfico
@@ -577,12 +644,59 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
             models.pop(0)
             del (self.model[x])
     
+    def layers(self,modelname):
+        model=self.get_model(modelname,True)
+        return self.nodos(model)
+
     def save(self,model,nome):
         path = self.output+'/'+nome[:-4]
         os.makedirs(path, exist_ok = True) 
         torch.save(model.state_dict() , os.path.join(path,nome))
         print("SALVANDO EM: \n",path)
 
+    def save_features(self,features,labels,train_test,nome,control,size_f,size_l):
+        path = self.output+'/'+nome[:-4]+'/'+train_test+'/'
+        os.makedirs(path, exist_ok = True) 
+        size_name=path+'size_images.csv'
+        dir = path
+        if(control==0):
+            for file in os.scandir(dir):
+                os.remove(file.path)
+            #size_f=features.shape
+            ds = pd.DataFrame(size_f)
+            ds.to_csv(size_name,index=False)
+        
+        feature_name=path+'f_'+str(control)+'.csv'
+
+
+        with open(feature_name, 'a+', newline='') as write_obj:
+            # Create a writer object from csv module
+            csv_writer = writer(write_obj)
+            # Add contents of list as last row in the csv file
+            for x in features:
+                csv_writer.writerow(x)
+
+        #labels=labels.reshape(-1)
+        #features=features.reshape(-1)
+
+        #df = pd.DataFrame(features)
+        #dl = pd.DataFrame(labels)
+        
+        #label_name=path+'l_'+str(control)+'.csv' 
+        
+        #df.to_csv(feature_name,index=False)
+        #dl.to_csv(label_name,index=False)
+        
+    def nodos(self,model):
+        nodes, _ = get_graph_node_names(model)
+        return nodes
+
+    def feature_extraction(self,model):
+        nodes, _ = get_graph_node_names(model)
+        retorno=nodes
+        feature_extractor = create_feature_extractor(
+	        model, return_nodes=[retorno[14]])
+        return feature_extractor
 
     def open_browse1(self, line, tab_name, type_folder):
         #path = QtWidgets.QFileDialog.getExistingDirectory(self, 'Select a source directory:', expanduser('~'))
@@ -767,6 +881,8 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
     def run(self):
         torch.cuda.empty_cache()
         gc.collect()
+        #self.train_test()
+        #self.load_dataloader(16)
         if(self.model!= [] or self.model != None):
             del self.model
             self.model=[]
@@ -798,8 +914,19 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
                 #self.model=self.get_model(selected_CNN[i],pretrained=True)
                 self.loss_fn=self.select_loss(self.controlFineTuning.ui.comboBox_loss.currentText())
                 self.load_dataloader(batch_size)
+                outputs=[]
+                for x in selected_CNN:
+                    loop = QtCore.QEventLoop()
+                    widget = self.controlOutput
+                    widget.show()
+                    widget.closed.connect(loop.quit)
+                    loop.exec_()
+                    print(self.controlOutput.ui.comboBox.currentIndex())
+                    #while self.controlOutput.ui.comboBox.currentIndex() == -1:
+                    #   pass 
+                    outputs.append(self.layers(x))
                 self.thread=QThread()
-                thread=threading.Thread(target=self.fineTuning,args=(epochs,device,selected_CNN,))
+                thread=threading.Thread(target=self.fineTuning,args=(epochs,device,selected_CNN,outputs,))
                 thread.start()
                 #self.worker=Worker(self.fineTuning,args=(epochs,))
                 #self.worker.moveToThread(self.thread)
