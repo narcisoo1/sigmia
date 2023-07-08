@@ -63,7 +63,15 @@
   "classifications": {
     "RandomForest": {
       "Parameters" : "",
-      "import": "from sklearn.ensemble import RandomForestClassifier"
+      "import": ""
+    },
+    "SVM": {
+      "Parameters" : "",
+      "import": ""
+    },
+    "GDM": {
+      "Parameters" : "",
+      "import": ""
     }
   },
   "losses": [

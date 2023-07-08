@@ -1,0 +1,8 @@
+matplotlib
+numpy
+Pillow
+PyQt5
+pyqtgraph
+pandas
+scikit-learn
+tensorboard

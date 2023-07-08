@@ -112,7 +112,7 @@ Charts</string>
      </rect>
     </property>
     <property name="currentIndex">
-     <number>0</number>
+     <number>2</number>
     </property>
     <widget class="QWidget" name="page_cnn">
      <widget class="QWidget" name="widget_Arch" native="true">
@@ -1730,7 +1730,7 @@ color: rgb(242, 242, 242);</string>
          <x>10</x>
          <y>10</y>
          <width>561</width>
-         <height>351</height>
+         <height>331</height>
         </rect>
        </property>
        <property name="frameShape">
@@ -1746,6 +1746,40 @@ color: rgb(242, 242, 242);</string>
          <string>Metric1</string>
         </property>
        </column>
+      </widget>
+      <widget class="QPushButton" name="btn_exib_run">
+       <property name="geometry">
+        <rect>
+         <x>520</x>
+         <y>350</y>
+         <width>50</width>
+         <height>20</height>
+        </rect>
+       </property>
+       <property name="styleSheet">
+        <string notr="true">background-color: rgb(48, 71, 140);
+color: rgb(242, 242, 242);</string>
+       </property>
+       <property name="text">
+        <string>Run</string>
+       </property>
+      </widget>
+      <widget class="QPushButton" name="btn_exib_reset">
+       <property name="geometry">
+        <rect>
+         <x>460</x>
+         <y>350</y>
+         <width>50</width>
+         <height>20</height>
+        </rect>
+       </property>
+       <property name="styleSheet">
+        <string notr="true">background-color: rgb(48, 71, 140);
+color: rgb(242, 242, 242);</string>
+       </property>
+       <property name="text">
+        <string>Reset</string>
+       </property>
       </widget>
      </widget>
      <widget class="QWidget" name="widget_Arch_2" native="true">
