@@ -6,3 +6,5 @@ pyqtgraph
 pandas
 scikit-learn
 tensorboard
+torch
+torchvision

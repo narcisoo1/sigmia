@@ -282,6 +282,26 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
 
         # Configuração do duplo clique em item da lista de datasets
         self.ui.listWidget_datasets.itemDoubleClicked.connect(self.onItemDoubleClicked)
+        
+        
+        self.ui.btn_cnn_pause.hide()
+        self.ui.btn_cnn_stop.hide()
+        self.ui.conf_btn_pt.hide()
+        self.ui.btn_output_layer.hide()
+        self.ui.btn_load_setup.hide()
+        self.ui.btn_save_setup.hide()
+        self.ui.btn_save_tt_cnn.hide()
+        self.ui.btn_load_tt_cnn.hide()
+        self.ui.btn_gen_tt_cnn.hide()
+
+
+        self.ui.btn_classifi_pause.hide()
+        self.ui.btn_classifi_stop.hide()
+        self.ui.btn_save_tt_classif.hide()
+        self.ui.btn_load_tt_classif.hide()
+        self.ui.btn_gen_tt_classif.hide()
+
+
 
 
 
