@@ -35,19 +35,19 @@
     }
   },
   "metrics": {
-    "accuracy_score": {
+    "Accuracy": {
       "table": true,
       "Args": ""
     },
-    "cohen_kappa_score": {
+    "Cohen's Kappa Score": {
       "table": true,
       "Args": ""
     },
-    "precision": {
+    "Precision": {
       "table": true,
       "Args": ""
     },
-    "recall": {
+    "Recall": {
       "table": true,
       "Args": ""
     },

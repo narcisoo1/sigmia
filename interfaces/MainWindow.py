@@ -403,8 +403,10 @@ class Ui_MainWindow(object):
         self.comboBox_metric.setObjectName("comboBox_metric")
         self.comboBox_metric.addItem("")
         self.comboBox_metric.addItem("")
-        self.widget_3 = QtWidgets.QWidget(self.widget_train_test_3)
+        self.widget_3 = QtWidgets.QPlainTextEdit(self.widget_train_test_3)
         self.widget_3.setGeometry(QtCore.QRect(10, 60, 264, 178))
+        self.widget_3.setFrameShape(QtWidgets.QFrame.NoFrame)
+        self.widget_3.setReadOnly(True)
         self.widget_3.setObjectName("widget_3")
         self.btn_classifi_pause = QtWidgets.QPushButton(self.widget_train_test_3)
         self.btn_classifi_pause.setGeometry(QtCore.QRect(164, 248, 50, 20))
@@ -639,7 +641,7 @@ class Ui_MainWindow(object):
 
     def retranslateUi(self, MainWindow):
         _translate = QtCore.QCoreApplication.translate
-        MainWindow.setWindowTitle(_translate("MainWindow", "TAKA"))
+        MainWindow.setWindowTitle(_translate("MainWindow", "SIGMIA"))
         self.btn_tab_CNN.setText(_translate("MainWindow", "Convolutional\n"
 "Neural Network"))
         self.btn_tab_Classf.setText(_translate("MainWindow", "Classification"))

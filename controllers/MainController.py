@@ -283,7 +283,10 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
         # Configuração do duplo clique em item da lista de datasets
         self.ui.listWidget_datasets.itemDoubleClicked.connect(self.onItemDoubleClicked)
         
+        #Configuração botão reset tabela de exibição
+        self.ui.btn_exib_reset.clicked.connect(lambda: self.reset_tablewidget())
         
+        #oculta botões sem uso
         self.ui.btn_cnn_pause.hide()
         self.ui.btn_cnn_stop.hide()
         self.ui.conf_btn_pt.hide()
@@ -293,8 +296,6 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
         self.ui.btn_save_tt_cnn.hide()
         self.ui.btn_load_tt_cnn.hide()
         self.ui.btn_gen_tt_cnn.hide()
-
-
         self.ui.btn_classifi_pause.hide()
         self.ui.btn_classifi_stop.hide()
         self.ui.btn_save_tt_classif.hide()
@@ -302,6 +303,8 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
         self.ui.btn_gen_tt_classif.hide()
 
 
+        #Reseta tabela dos resultados
+        self.reset_tablewidget()
 
 
 
@@ -621,6 +624,7 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
             if tab_name == 'classif' and type_folder == 'input_folder':
                 # Atualiza o campo de linha de entrada correspondente na interface do usuário
                 self.ui.line_input_2.setText(path)
+                self.ui.line_output_2.setText(path)
                 # Popula o widget de lista com os arquivos do diretório selecionado
                 self.populate_list_widget(path)
             if tab_name == 'classif' and type_folder == 'output_folder':
@@ -1134,8 +1138,28 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
             models.pop(0)
             del self.model[x]
 
+    def newWeights(self, epoch, device, train_dataloader, test_dataloader, models):
+        """
+        Realiza o processo de ajuste fino (fine-tuning) de um modelo de classificação.
 
-    def fineTuningOriginal(self, epoch, device, train_dataloader, test_dataloader, models):
+        Parâmetros:
+            epoch: O número de épocas de treinamento.
+            device: O dispositivo de execução (por exemplo, 'cuda' para GPU ou 'cpu' para CPU).
+            train_dataloader: O dataloader de treinamento que fornece os dados de treinamento.
+            test_dataloader: O dataloader de teste que fornece os dados de teste.
+            models: Uma lista de modelos a serem finetunados.
+
+        Retorna:
+            Nenhum valor de retorno.
+
+        Exemplo:
+            epoch = 10
+            device = 'cuda'
+            train_dataloader = [...]
+            test_dataloader = [...]
+            models = ['resnet50', 'vgg16']
+            fineTuning(epoch, device, train_dataloader, test_dataloader, models)
+        """
         trainTestORKFold = None
         if self.ui.radio_btn_tt_cnn.isChecked():
             trainTestORKFold = "tt" + self.ui.spinBox_cnn_train.text()
@@ -1144,14 +1168,8 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
 
         accurate = []
         epochs = []
-        #self.loss_monitor = LossMonitor(models, self.ui.widget_monitor)  # Passe o widget para a classe LossMonitor
-        # Criação do QLabel e definição do texto
-        #self.label.setText("Novo texto")
-        #self.ui.widget_monitor.setWindowTitle("UEEEEEEEEEEEEEEEEEEEEEE")
-        # Criação do QLabel dentro do QWidget
         self.loss_monitor.set_model_names(models)
 
-        #QApplication.processEvents()
         for j in range(len(models)):
             contador_treino = 0
             x = 0
@@ -1159,17 +1177,17 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
             nome = (
                 models[x]
                 + "_"
-                + "Fine-tuning"
+                + "New-Weights"
                 + "_"
-                + self.controlFineTuning.ui.comboBox_loss.currentText()
+                + self.controlNewWeights.ui.comboBox_loss.currentText()
                 + "_"
-                + self.controlFineTuning.ui.comboBox_opt.currentText()
+                + self.controlNewWeights.ui.comboBox_optimizer.currentText()
                 + "_"
-                + self.controlFineTuning.ui.comboBox_metrics.currentText()
+                + self.controlNewWeights.ui.comboBox_metric.currentText()
                 + "_"
-                + str(self.controlFineTuning.ui.spinBox_epochs.value())
+                + str(self.controlNewWeights.ui.spinBox_epochs.value())
                 + "_"
-                + str(self.controlFineTuning.ui.spinBox_batch_size.value())
+                + str(self.controlNewWeights.ui.spinBox_batch_size.value())
                 + "_"
                 + trainTestORKFold
                 + ".pth"
@@ -1178,79 +1196,149 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
             self.ui.plainTextEdit_log1.insertPlainText(
                 "VAMOS AO PROCESSAMENTO(" + models[x] + ")\n"
             )
-            self.model.append(self.get_model(models[x], pretrained=True))
+            self.model.append(self.get_model(models[x], pretrained=False))
 
             feature_extractor = FeatureExtractor(self.model[x])
 
             self.optimizer = self.get_optimizer(
-                self.controlFineTuning.ui.comboBox_opt.currentText(), self.model[x]
+                self.controlNewWeights.ui.comboBox_optimizer.currentText(), self.model[x]
             )
+            
+            if self.ui.radio_btn_kf_cnn.isChecked():
+                for fold in range(len(train_dataloader)):
+                    print(f"Training on fold {fold+1}/{len(train_dataloader)}")
 
-            for i in range(epoch):
-                num_correct = 0.0
-                num_samples = 0.0
-                losses_train = []
-                accuracies_train = []
-                losses_test = []
-                accuracies_test = []
+                    for i in range(epoch):
+                        num_correct = 0.0
+                        num_samples = 0.0
+                        losses_train = []
+                        accuracies_train = []
+                        losses_test = []
+                        accuracies_test = []
 
-                self.model[x].train()
+                        self.model[x].train()
 
-                for data, label in train_dataloader:
-                    data, label = data.to(device), label.to(device)
-                    self.model[x].to(device)
-                    targets = self.model[x](data)
-                    loss = self.loss_fn(targets, label)
-                    accuracies_train.append(
-                        label.eq(targets.detach().argmax(dim=1)).float().mean()
-                    )
-                    self.optimizer.zero_grad()
-                    loss.backward()
-                    self.optimizer.step()
-                    losses_train.append(loss.item())
+                        for data, label in train_dataloader[fold]:
+                            data, label = data.to(device), label.to(device)
+                            self.model[x].to(device)
+                            targets = self.model[x](data)
+                            loss = self.loss_fn(targets, label)
+                            accuracies_train.append(
+                                label.eq(targets.detach().argmax(dim=1)).float().mean()
+                            )
+                            self.optimizer.zero_grad()
+                            loss.backward()
+                            self.optimizer.step()
+                            losses_train.append(loss.item())
 
-                testloss = 0.0
-                self.model[x].eval()
-                running_accuracy = 0.0
+                        testloss = 0.0
+                        self.model[x].eval()
+                        running_accuracy = 0.0
 
-                for data, label in test_dataloader:
-                    data, label = data.to(device), label.to(device)
-                    self.model[x].to(device)
-                    with torch.no_grad():
+                        for data, label in test_dataloader[fold]:
+                            data, label = data.to(device), label.to(device)
+                            self.model[x].to(device)
+                            with torch.no_grad():
+                                targets = self.model[x](data)
+                            running_accuracy += self.accuracy(targets, label)
+                            _, predictions = targets.max(1)
+                            num_correct += (predictions == label).sum()
+                            num_samples += predictions.size(0)
+                            loss = self.loss_fn(targets, label)
+                            testloss = loss.item() * data.size(0)
+                            losses_test.append(loss.item())
+                            accuracies_test.append(
+                                label.eq(targets.detach().argmax(dim=1)).float().mean()
+                            )
+
+                        accurate.append(float(num_correct / num_samples))
+                        epochs.append(i)
+
+                        self.loss_monitor.update_loss(models[x], loss)
+                        QApplication.processEvents()
+                        log = "Acurácia: " + str(float(num_correct / num_samples)) + "\n"
+                        self.ui.plainTextEdit_log1.insertPlainText(log)
+
+                        if minvalid_loss is None:
+                            minvalid_loss = testloss
+
+                        if minvalid_loss >= testloss:
+                            print(
+                                f"Test data Decreased({minvalid_loss:.6f}--->{testloss:.6f}) \t Saving The Model"
+                            )
+                            self.save(self.model[x], nome)
+                            minvalid_loss = testloss
+
+                        if fold == 0:
+                            print("Salvando Features")
+                            self.save_features(feature_extractor, train_dataloader[fold], "train", nome, device)
+                            print("Salvamento concluído")
+            else:
+                for i in range(epoch):
+                    num_correct = 0.0
+                    num_samples = 0.0
+                    losses_train = []
+                    accuracies_train = []
+                    losses_test = []
+                    accuracies_test = []
+
+                    self.model[x].train()
+
+                    for data, label in train_dataloader:
+                        data, label = data.to(device), label.to(device)
+                        self.model[x].to(device)
                         targets = self.model[x](data)
-                    running_accuracy += self.accuracy(targets, label)
-                    _, predictions = targets.max(1)
-                    num_correct += (predictions == label).sum()
-                    num_samples += predictions.size(0)
-                    loss = self.loss_fn(targets, label)
-                    testloss = loss.item() * data.size(0)
-                    losses_test.append(loss.item())
-                    accuracies_test.append(
-                        label.eq(targets.detach().argmax(dim=1)).float().mean()
-                    )
+                        loss = self.loss_fn(targets, label)
+                        accuracies_train.append(
+                            label.eq(targets.detach().argmax(dim=1)).float().mean()
+                        )
+                        self.optimizer.zero_grad()
+                        loss.backward()
+                        self.optimizer.step()
+                        losses_train.append(loss.item())
 
-                accurate.append(float(num_correct / num_samples))
-                epochs.append(i)
+                    testloss = 0.0
+                    self.model[x].eval()
+                    running_accuracy = 0.0
 
-                self.loss_monitor.update_loss(models[x],loss)
-                QApplication.processEvents()
-                log = "Acurácia: " + str(float(num_correct / num_samples)) + "\n"
-                self.ui.plainTextEdit_log1.insertPlainText(log)
+                    for data, label in test_dataloader:
+                        data, label = data.to(device), label.to(device)
+                        self.model[x].to(device)
+                        with torch.no_grad():
+                            targets = self.model[x](data)
+                        running_accuracy += self.accuracy(targets, label)
+                        _, predictions = targets.max(1)
+                        num_correct += (predictions == label).sum()
+                        num_samples += predictions.size(0)
+                        loss = self.loss_fn(targets, label)
+                        testloss = loss.item() * data.size(0)
+                        losses_test.append(loss.item())
+                        accuracies_test.append(
+                            label.eq(targets.detach().argmax(dim=1)).float().mean()
+                        )
 
-                if minvalid_loss is None:
-                    minvalid_loss = testloss
+                    accurate.append(float(num_correct / num_samples))
+                    epochs.append(i)
 
-                if minvalid_loss >= testloss:
-                    print(
-                        f"Test data Decreased({minvalid_loss:.6f}--->{testloss:.6f}) \t Saving The Model"
-                    )
-                    self.save(self.model[x], nome)
-                    minvalid_loss = testloss
+                    self.loss_monitor.update_loss(models[x], loss)
+                    QApplication.processEvents()
+                    log = "Acurácia: " + str(float(num_correct / num_samples)) + "\n"
+                    self.ui.plainTextEdit_log1.insertPlainText(log)
 
-                if i == 0:
-                    print("Salvando Features")
-                    self.save_features(feature_extractor, train_dataloader, "train", nome, device)
-                    print("Salvamento concluído")
+                    if minvalid_loss is None:
+                        minvalid_loss = testloss
+
+                    if minvalid_loss >= testloss:
+                        print(
+                            f"Test data Decreased({minvalid_loss:.6f}--->{testloss:.6f}) \t Saving The Model"
+                        )
+                        self.save(self.model[x], nome)
+                        minvalid_loss = testloss
+
+                    if i == 0:
+                        print("Salvando Features")
+                        self.save_features(feature_extractor, train_dataloader, "train", nome, device)
+                        print("Salvamento concluído")
 
 
             models.pop(0)
@@ -1851,6 +1939,7 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
             kfold (bool, optional): Indica se deve ser usado o K-Fold cross-validation. O padrão é False.
 
         """
+        
 
         # Verificar se classifier_names é uma string e transformá-la em uma lista
         if isinstance(classifier_names, str):
@@ -1859,8 +1948,18 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
         # Obter o diretório de saída
         save_folder = self.ui.line_output_2.text()
         
+        #Contador auxiliar
+        qtd_classifier=len(classifier_names)
+        qtd_aux=1
+
         # Loop sobre os nomes dos classificadores
         for classifier_name in classifier_names:
+            self.ui.plainTextEdit_log2.insertPlainText(f"Processando {classifier_name} \n")
+            self.ui.plainTextEdit_log2.update()
+
+            self.ui.widget_3.insertPlainText(f"{classifier_name}:\n")
+            self.ui.widget_3.update()
+            
             # Importar o classificador
             classifier = self.import_classifier(classifier_name)
             
@@ -1893,7 +1992,12 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
                     print("Cohen's Kappa Score:", kappa)
                     print("Precision:", precision)
                     print("Recall:", recall)
-                    
+                    if(self.ui.comboBox_metric.currentText()=="Accuracy"):
+                        self.ui.widget_3.insertPlainText(f"Acurácia: {accuracy}\n")
+                        self.ui.widget_3.update()
+                    else:
+                        self.ui.widget_3.insertPlainText(f"Kappa: {kappa}\n")
+                        self.ui.widget_3.update()
                     result = {
                         "Accuracy": accuracy,
                         "Cohen's Kappa Score": kappa,
@@ -1926,6 +2030,13 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
                 print("Precision:", precision)
                 print("Recall:", recall)
                 
+                if(self.ui.comboBox_metric.currentText()=="Accuracy"):
+                        self.ui.widget_3.insertPlainText(f"Acurácia: {accuracy}\n")
+                        self.ui.widget_3.update()
+                else:
+                    self.ui.widget_3.insertPlainText(f"Kappa: {kappa}\n")
+                    self.ui.widget_3.update()
+                
                 result = {
                     "Accuracy": accuracy,
                     "Cohen's Kappa Score": kappa,
@@ -1941,87 +2052,15 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
             
             # Salvar os resultados em um arquivo CSV
             self.save_results_to_csv(results, classifier_folder, classifier_name)
+            if(qtd_classifier==qtd_aux):
+                self.ui.plainTextEdit_log2.insertPlainText("Processamento Finalizado!")
+                self.ui.plainTextEdit_log2.update()
+            qtd_aux+=1
+        self.ui.comboBox_metric.setEnabled(True)
+        self.ui.plainTextEdit_log2.update()
 
 
-    def train_classifierOriginal(self, classifier_name, dataset_csv, kfold=False):
-        classifier = self.import_classifier(classifier_name)
-        results = []
-        if kfold:
-            splits, features, labels = dataset_csv
-            for train_index, test_index in splits:
-                train_features, test_features = features.iloc[train_index], features.iloc[test_index]
-                train_labels, test_labels = labels.iloc[train_index], labels.iloc[test_index]
-                
-                # Treinar o classificador usando train_features e train_labels
-                classifier.fit(train_features, train_labels)
-                
-                # Testar o classificador usando test_features e test_labels
-                predictions = classifier.predict(test_features)
-                accuracy = classifier.score(test_features, test_labels)
-                
-                # Calcular métricas
-                kappa = cohen_kappa_score(test_labels, predictions)
-                precision = precision_score(test_labels, predictions)
-                recall = recall_score(test_labels, predictions)
-                
-                # Calcular Precision-Recall Curve
-                precision_curve, recall_curve, _ = precision_recall_curve(test_labels, predictions)
-                
-                # Calcular ROC Curve
-                fpr, tpr, _ = roc_curve(test_labels, predictions)
-                roc_auc = auc(fpr, tpr)
-                
-                # Imprimir métricas
-                print("Accuracy:", accuracy)
-                print("Cohen's Kappa Score:", kappa)
-                print("Precision:", precision)
-                print("Recall:", recall)
-                
-                result = {
-                    "Accuracy": accuracy,
-                    "Cohen's Kappa Score": kappa,
-                    "Precision": precision,
-                    "Recall": recall
-                }
-                results.append(result)
 
-
-        else:
-            train_features, test_features, train_labels, test_labels = dataset_csv
-            
-            # Treinar o classificador usando train_features e train_labels
-            classifier.fit(train_features, train_labels)
-            
-            # Testar o classificador usando test_features e test_labels
-            predictions = classifier.predict(test_features)
-            accuracy = classifier.score(test_features, test_labels)
-            
-            # Calcular métricas
-            kappa = cohen_kappa_score(test_labels, predictions)
-            precision = precision_score(test_labels, predictions,average='micro')
-            recall = recall_score(test_labels, predictions,average='micro')
-            
-            # Calcular Precision-Recall Curve
-            #precision_curve, recall_curve, _ = precision_recall_curve(test_labels, predictions)
-            
-            # Calcular ROC Curve
-            #fpr, tpr, _ = roc_curve(test_labels, predictions)
-            #roc_auc = auc(fpr, tpr)
-            
-            # Imprimir métricas
-            print("Accuracy:", accuracy)
-            print("Cohen's Kappa Score:", kappa)
-            print("Precision:", precision)
-            print("Recall:", recall)
-
-            result = {
-                "Accuracy": accuracy,
-                "Cohen's Kappa Score": kappa,
-                "Precision": precision,
-                "Recall": recall
-            }
-            results.append(result)
-    
 
     # Tela de exibição
 
@@ -2064,6 +2103,10 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
         # Limpar a tabela
         table.clear()
         all_data = []
+        selected_metrics = self.checkedItems(self.ui.list_metrics)
+        #print(selected_metrics)
+        print("Recall" in selected_metrics)
+
 
         for path in csv_paths:
             # Abrir o arquivo CSV atual
@@ -2078,11 +2121,15 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
 
         # Obter o número de linhas e colunas dos dados
         num_csvs = len(all_data)
+        rowsNew=num_csvs*(len(selected_metrics)+1)
         rows = sum(len(data) for _, data in all_data)
         columns = len(all_data[0][1][0]) if rows > 0 else 0
 
+        #print(rowsNew)
+
         # Definir o número de linhas e colunas da tabela
-        table.setRowCount(rows)
+        #print(rows)
+        table.setRowCount(rowsNew)
         table.setColumnCount(columns + 1)  # Adicionar uma coluna extra para o nome do arquivo
 
         # Preencher a tabela com os dados dos CSVs
@@ -2091,15 +2138,21 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
             # Preencher a célula com o nome do arquivo
             name_item = QTableWidgetItem(csv_name)
             table.setItem(current_row, 0, name_item)
-            table.setSpan(current_row, 0, len(csv_data), 1)  # Expandir a célula do nome do arquivo por todas as linhas dos dados
+            table.setSpan(current_row, 0, (len(selected_metrics)+1), 1)  # Expandir a célula do nome do arquivo por todas as linhas dos dados
 
             # Preencher as células com os dados do CSV atual
             for row, csv_row in enumerate(csv_data):
+                #print(csv_row[0])
+                
                 for column, value in enumerate(csv_row):
-                    item = QTableWidgetItem(value)
-                    table.setItem(current_row + row, column + 1, item)
-
-            current_row += len(csv_data)
+                    #print(csv_row[0])
+                    if(csv_row[0] == "Metric" or (csv_row[0] in selected_metrics)):
+                        item = QTableWidgetItem(value)
+                        table.setItem(current_row + row, column + 1, item)
+                    else:
+                        pass
+            #print(len(csv_data))
+            current_row += (len(selected_metrics)+1)
 
         for column in range(table.columnCount()):
             table.setColumnWidth(column, 150)  # Define uma largura mínima de 150 pixels para todas as colunas
@@ -2132,6 +2185,13 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
 
         return new_path
 
+    def reset_tablewidget(self,table_widget=None):
+        if table_widget==None:
+            table_widget=self.ui.tableWidget
+        # Remove o conteúdo das células
+        table_widget.clearContents()
+        # Define o número de linhas como zero
+        table_widget.setRowCount(0)
 
     def run_exib(self):
         """
@@ -2223,8 +2283,16 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
                 # Carrega os dados CSV
                 dataset_csv = self.load_data_csv(file_path_csv, label_path_csv, test_size)
                 
+                self.ui.plainTextEdit_log2.insertPlainText("Processando os Classificadores!\n")
+                self.ui.comboBox_metric.setEnabled(False)
+
                 # Treina os classificadores
-                self.train_classifier(selected_classificadores, dataset_csv, selected_datasets[0], False)
+                self.thread=QThread()
+                thread=threading.Thread(target=self.train_classifier,args=(selected_classificadores, dataset_csv, selected_datasets[0], False,))
+                thread.start()
+
+
+                #self.train_classifier(selected_classificadores, dataset_csv, selected_datasets[0], False)
             else:
                 # K-Fold Cross Validation
                 del dataset_csv
@@ -2317,28 +2385,62 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
                 #self.thread.start()
                 #self.fineTuning(epochs)
                 
-                
+            #Se selecionado New Weights
             if(self.ui.radio_btn_nw.isChecked()):
+                if(self.ui.radio_btn_tt_cnn.isChecked()):
+                    del self.image_datasets
+                    del self.labels
+                    del self.dataset_sizes 
+                    del self.class_names
+                    train,test=self.train_test()
+                else:
+                    train,test=self.kfold_split(int(self.ui.spinBox_cnn_kf.text()))
+                print("\n\n\n")
+                print(train)
+                print(test)
+                print("\n\n\n")
                 epochs=self.controlNewWeights.ui.spinBox_epochs.value()
                 batch_size=self.controlNewWeights.ui.spinBox_batch_size.value()
-                selected_CNN = self.checkedItems(self.ui.listWidget_arch)
-                self.model=self.get_model(selected_CNN[i],pretrained=True)
+                #self.model=self.get_model(selected_CNN[i],pretrained=True)
                 self.loss_fn=self.select_loss(self.controlNewWeights.ui.comboBox_loss.currentText())
-                self.optimizer=self.get_optimizer(self.controlNewWeights.ui.comboBox_optimizer.currentText())
-                self.load_dataloader(batch_size)
-                print("VAMOS AO PROCESSAMENTO..\n")
-                self.newweights(epochs)
-                print("NewWeights")
-            if(self.ui.radio_btn_pt.isChecked()):
-                epochs=10
-                batch_size=8
-                selected_CNN = self.checkedItems(self.ui.listWidget_arch)
-                self.model=self.get_model(selected_CNN[i],pretrained=True)
-                self.loss_fn=self.select_loss("CrossEntropyLoss")
-                self.optimizer="Adam"
-                self.load_dataloader(batch_size)
-                print("VAMOS AO PROCESSAMENTO..\n")
-                self.pretrained(epochs)
+                train_dataloader,test_dataloader=self.load_dataloader(train,test,batch_size)
+
+                print("\n\n\n")
+                print(train_dataloader)
+                print(test_dataloader)
+                print("\n\n\n")
+
+                del train
+                del test
+                #outputs=[]
+                for x in selected_CNN:
+                    #loop = QtCore.QEventLoop()
+                    #widget = self.controlOutput
+                    #widget.show()
+                    #widget.closed.connect(loop.quit)
+                    #loop.exec_()
+                    print(self.controlOutput.ui.comboBox.currentIndex())
+                    #while self.controlOutput.ui.comboBox.currentIndex() == -1:
+                    #   pass 
+                    #outputs.append(self.layers(x))
+                self.thread=QThread()
+                thread=threading.Thread(target=self.newWeights,args=(epochs,device,train_dataloader,test_dataloader,selected_CNN,))
+                thread.start()
+                del train_dataloader
+                del test_dataloader
+                del epochs
+                del device
+                del selected_CNN
+        if(self.ui.radio_btn_pt.isChecked()):
+            epochs=10
+            batch_size=8
+            selected_CNN = self.checkedItems(self.ui.listWidget_arch)
+            self.model=self.get_model(selected_CNN[i],pretrained=True)
+            self.loss_fn=self.select_loss("CrossEntropyLoss")
+            self.optimizer="Adam"
+            self.load_dataloader(batch_size)
+            print("VAMOS AO PROCESSAMENTO..\n")
+            self.pretrained(epochs)
             
 
 
