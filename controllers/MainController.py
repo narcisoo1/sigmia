@@ -1909,6 +1909,9 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
 
     def save_cm(self, cm, labels, save_folder, classifier_name):
         
+        # Criar o diretório, caso não exista
+        os.makedirs(save_folder, exist_ok=True)
+
         # Definindo as classes (rótulos) das categorias
         classes = np.unique(labels)
 
