@@ -51,7 +51,7 @@ import pyqtgraph as pg
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split, KFold
-from sklearn.metrics import cohen_kappa_score, precision_score, recall_score, precision_recall_curve, roc_curve, auc
+from sklearn.metrics import cohen_kappa_score, precision_score, recall_score, precision_recall_curve, roc_curve, auc, f1_score, confusion_matrix
 
 #Import svm model
 from sklearn import svm
@@ -1895,9 +1895,9 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
             ValueError: Se o nome do classificador não for suportado.
 
         """
-        if classifier_name == "GDM":
-            from sklearn.linear_model import LogisticRegression
-            return LogisticRegression()
+        if classifier_name == "MLP":
+            from sklearn.neural_network import MLPClassifier
+            return MLPClassifier(max_iter=100)
         elif classifier_name == "RandomForest":
             from sklearn.ensemble import RandomForestClassifier
             return RandomForestClassifier()
@@ -1907,6 +1907,32 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
         else:
             raise ValueError("Classifier '{}' not supported.".format(classifier_name))
 
+    def save_cm(self, cm, labels, save_folder, classifier_name):
+        
+        # Definindo as classes (rótulos) das categorias
+        classes = np.unique(labels)
+
+        # Plotando a matriz de confusão como um gráfico
+        plt.figure(figsize=(8, 6))
+        plt.imshow(cm, interpolation='nearest', cmap=plt.cm.Blues)
+        plt.title(f'Matriz de Confusão {classifier_name}')
+        plt.colorbar()
+        tick_marks = np.arange(len(classes))
+        plt.xticks(tick_marks, classes, rotation=45)
+        plt.yticks(tick_marks, classes)
+        plt.xlabel('Predito')
+        plt.ylabel('Real')
+
+        # Preenchendo a matriz de confusão com os valores
+        thresh = cm.max() / 2.
+        for i in range(len(classes)):
+            for j in range(len(classes)):
+                plt.text(j, i, format(cm[i, j], 'd'),
+                        horizontalalignment="center",
+                        color="white" if cm[i, j] > thresh else "black")
+
+        plt.tight_layout()
+        plt.savefig(f'{save_folder}/{classifier_name}_cm.png')
 
     def save_results_to_csv(self, results, save_folder, classifier_name):
         """
@@ -1928,7 +1954,7 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
             result_df.to_csv(filename, index=False)
 
 
-    def train_classifier(self, classifier_names, dataset_csv, folder_name, kfold=False):
+    def train_classifier(self, classifier_names, dataset_csv, folder_name, kfold):
         """
         Treina classificadores e avalia seu desempenho usando métricas.
 
@@ -1945,6 +1971,10 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
         if isinstance(classifier_names, str):
             classifier_names = [classifier_names]
         
+        if kfold:
+            splits, features, labels = dataset_csv
+            list_splits=list(splits)
+
         # Obter o diretório de saída
         save_folder = self.ui.line_output_2.text()
         
@@ -1968,10 +1998,18 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
             
             if kfold:
                 # Se for usado K-Fold cross-validation
-                splits, features, labels = dataset_csv
-                
+                #splits, features, labels = dataset_csv
+                #splits=list(splits1)
+                elementos = list_splits
+                splits1 = (valor for valor in elementos)
+                #print(splits)
+                #print(features)
+                #print(labels)
+
+
                 # Loop sobre as divisões do conjunto de dados
-                for train_index, test_index in splits:
+                for train_index, test_index in splits1:
+                    #print("RODOU")
                     train_features, test_features = features.iloc[train_index], features.iloc[test_index]
                     train_labels, test_labels = labels.iloc[train_index], labels.iloc[test_index]
                     
@@ -1986,34 +2024,43 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
                     kappa = cohen_kappa_score(test_labels, predictions)
                     precision = precision_score(test_labels, predictions)
                     recall = recall_score(test_labels, predictions)
-                    
+                    f1 = f1_score(test_labels, predictions)
+                    cm = confusion_matrix(test_labels, predictions)
+                    tn, fp, fn, tp = cm.ravel()
+                    especificidade = tn / (tn + fp)
+
                     # Imprimir métricas
-                    print("Accuracy:", accuracy)
-                    print("Cohen's Kappa Score:", kappa)
-                    print("Precision:", precision)
-                    print("Recall:", recall)
+                    #print("Accuracy:", accuracy)
+                    #print("Cohen's Kappa Score:", kappa)
+                    #print("Precision:", precision)
+                    #print("Recall:", recall)
                     if(self.ui.comboBox_metric.currentText()=="Accuracy"):
-                        self.ui.widget_3.insertPlainText(f"Acurácia: {accuracy}\n")
+                        self.ui.widget_3.insertPlainText(f"Acuracia: {accuracy}\n")
                         self.ui.widget_3.update()
                     else:
                         self.ui.widget_3.insertPlainText(f"Kappa: {kappa}\n")
                         self.ui.widget_3.update()
                     result = {
-                        "Accuracy": accuracy,
-                        "Cohen's Kappa Score": kappa,
-                        "Precision": precision,
-                        "Recall": recall
+                        "Acuracia": accuracy,
+                        "Kappa": kappa,
+                        "Sensibilidade": recall,
+                        "Especificidade": especificidade,
+                        "F1-Score": f1
                     }
                     
                     # Adicionar o dicionário de resultados à lista de resultados
                     results.append(result)
+
                 
             else:
                 # Se não for usado K-Fold cross-validation
                 train_features, test_features, train_labels, test_labels = dataset_csv
                 
-                # Treinar o classificador usando train_features e train_labels
-                classifier.fit(train_features, train_labels)
+                for epoch in range(5):
+                    # Laço de treinamento personalizado para o classificador específico com 'epochs'
+                    #classifier.partial_fit(train_features, train_labels, classes=np.unique(train_labels))
+                    # Treinar o classificador usando train_features e train_labels
+                    classifier.fit(train_features, train_labels)
                 
                 # Testar o classificador usando test_features e test_labels
                 predictions = classifier.predict(test_features)
@@ -2021,14 +2068,19 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
                 
                 # Calcular métricas
                 kappa = cohen_kappa_score(test_labels, predictions)
-                precision = precision_score(test_labels, predictions, average='micro')
-                recall = recall_score(test_labels, predictions, average='micro')
-                
+                precision = precision_score(test_labels, predictions)
+                recall = recall_score(test_labels, predictions)
+                f1 = f1_score(test_labels, predictions)
+                cm = confusion_matrix(test_labels, predictions)
+                tn, fp, fn, tp = cm.ravel()
+                especificidade = tn / (tn + fp)
+
                 # Imprimir métricas
-                print("Accuracy:", accuracy)
-                print("Cohen's Kappa Score:", kappa)
-                print("Precision:", precision)
-                print("Recall:", recall)
+                print("Acuracia:", accuracy)
+                print("Kappa:", kappa)
+                print("Sensibilidade:", recall)
+                print("Especificidade:", especificidade)
+                print("F1-Score", f1)
                 
                 if(self.ui.comboBox_metric.currentText()=="Accuracy"):
                         self.ui.widget_3.insertPlainText(f"Acurácia: {accuracy}\n")
@@ -2038,20 +2090,27 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
                     self.ui.widget_3.update()
                 
                 result = {
-                    "Accuracy": accuracy,
-                    "Cohen's Kappa Score": kappa,
-                    "Precision": precision,
-                    "Recall": recall
+                    "Acuracia": accuracy,
+                    "Kappa": kappa,
+                    "Sensibilidade": recall,
+                    "Especificidade": especificidade,
+                    "F1-Score": f1
                 }
                 
                 # Adicionar o dicionário de resultados à lista de resultados
                 results.append(result)
             
+            #print(results[0])
             # Caminho para o diretório do classificador
             classifier_folder = save_folder + f"/{folder_name}" + "/results/"
             
             # Salvar os resultados em um arquivo CSV
-            self.save_results_to_csv(results, classifier_folder, classifier_name)
+            if kfold:
+                self.save_cm(cm,test_labels,classifier_folder,classifier_name)
+                self.save_results_to_csv([results[0]], classifier_folder, classifier_name)
+            else:
+                self.save_cm(cm,test_labels,classifier_folder,classifier_name)
+                self.save_results_to_csv(results, classifier_folder, classifier_name)
             if(qtd_classifier==qtd_aux):
                 self.ui.plainTextEdit_log2.insertPlainText("Processamento Finalizado!")
                 self.ui.plainTextEdit_log2.update()
@@ -2104,8 +2163,16 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
         table.clear()
         all_data = []
         selected_metrics = self.checkedItems(self.ui.list_metrics)
+        qtd_rows=len(selected_metrics)+1
+        if "precision_recall_curve" in selected_metrics:
+            qtd_rows -= 1
+        if "roc_curve" in selected_metrics:
+            qtd_rows -= 1
+        if "Matriz de Confusao" in selected_metrics:
+            qtd_rows -= 1
+
         #print(selected_metrics)
-        print("Recall" in selected_metrics)
+        #print("Recall" in selected_metrics)
 
 
         for path in csv_paths:
@@ -2118,10 +2185,15 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
                 # Adicionar os dados do CSV atual à lista de dados
                 nome = self.converter_path_caminho(path)
                 all_data.append((nome, data))  # Adicionar uma tupla com o nome do arquivo e os dados à lista
+            if "Matriz de Confusao" in selected_metrics:
+                novo_path = path[:-4]
+                novo_path += "_cm.png"
+                image = Image.open(novo_path)
+                image.show()
 
         # Obter o número de linhas e colunas dos dados
         num_csvs = len(all_data)
-        rowsNew=num_csvs*(len(selected_metrics)+1)
+        rowsNew=num_csvs*qtd_rows
         rows = sum(len(data) for _, data in all_data)
         columns = len(all_data[0][1][0]) if rows > 0 else 0
 
@@ -2134,11 +2206,12 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
 
         # Preencher a tabela com os dados dos CSVs
         current_row = 0
+        current_aux = 0
         for csv_index, (csv_name, csv_data) in enumerate(all_data):
             # Preencher a célula com o nome do arquivo
             name_item = QTableWidgetItem(csv_name)
             table.setItem(current_row, 0, name_item)
-            table.setSpan(current_row, 0, (len(selected_metrics)+1), 1)  # Expandir a célula do nome do arquivo por todas as linhas dos dados
+            table.setSpan(current_row, 0, (qtd_rows), 1)  # Expandir a célula do nome do arquivo por todas as linhas dos dados
 
             # Preencher as células com os dados do CSV atual
             for row, csv_row in enumerate(csv_data):
@@ -2147,12 +2220,15 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
                 for column, value in enumerate(csv_row):
                     #print(csv_row[0])
                     if(csv_row[0] == "Metric" or (csv_row[0] in selected_metrics)):
+                        #print(current_aux,current_aux + row, column + 1)
                         item = QTableWidgetItem(value)
-                        table.setItem(current_row + row, column + 1, item)
+                        table.setItem(current_aux, column + 1, item)
+                        if(column==1):
+                            current_aux+=1
                     else:
                         pass
             #print(len(csv_data))
-            current_row += (len(selected_metrics)+1)
+            current_row += (qtd_rows)
 
         for column in range(table.columnCount()):
             table.setColumnWidth(column, 150)  # Define uma largura mínima de 150 pixels para todas as colunas
@@ -2296,15 +2372,18 @@ class ApplicationWindow(QtWidgets.QMainWindow,QObject):
             else:
                 # K-Fold Cross Validation
                 del dataset_csv
-                file_path_csv = Path(self.ui.line_input_2.text() + "/" + selected_datasets[0] + "/train/train_features_0.csv")
-                label_path_csv = Path(self.ui.line_input_2.text() + "/" + selected_datasets[0] + "/train/train_labels_0.csv")
+                file_path_csv = Path(self.ui.line_input_2.text() + "/" + selected_datasets[0] + "/train/train_features.csv")
+                label_path_csv = Path(self.ui.line_input_2.text() + "/" + selected_datasets[0] + "/train/train_labels.csv")
                 splits = int(self.ui.spinBox_classifi_kf.text())
                 
                 # Carrega os dados CSV
                 dataset_csv = self.load_data_csv(file_path_csv, label_path_csv, n_splits=splits, kfold=True)
                 
                 # Treina os classificadores usando K-Fold
-                self.train_classifier(selected_classificadores, dataset_csv, selected_datasets[0], True)
+                self.thread=QThread()
+                thread=threading.Thread(target=self.train_classifier,args=(selected_classificadores, dataset_csv, selected_datasets[0], True,))
+                thread.start()
+                #self.train_classifier(selected_classificadores, dataset_csv, selected_datasets[0], True)
 
 
 

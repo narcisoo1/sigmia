@@ -35,27 +35,27 @@
     }
   },
   "metrics": {
-    "Accuracy": {
+    "Acuracia": {
       "table": true,
       "Args": ""
     },
-    "Cohen's Kappa Score": {
+    "Kappa": {
       "table": true,
       "Args": ""
     },
-    "Precision": {
+    "Sensibilidade": {
       "table": true,
       "Args": ""
     },
-    "Recall": {
+    "Especificidade": {
       "table": true,
       "Args": ""
     },
-    "precision_recall_curve": {
+    "F1-Score": {
       "table": false,
       "Args": ""
     },
-    "roc_curve": {
+    "Matriz de Confusao": {
       "table": false,
       "Args": ""
     }
@@ -69,7 +69,7 @@
       "Parameters" : "",
       "import": ""
     },
-    "GDM": {
+    "MLP": {
       "Parameters" : "",
       "import": ""
     }
