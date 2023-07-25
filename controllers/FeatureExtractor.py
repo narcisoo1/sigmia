@@ -17,6 +17,10 @@ class FeatureExtractor:
             return "ResNet"
         elif isinstance(model, models.GoogLeNet):
             return "GoogLeNet"
+        elif isinstance(model, models.VGG):  # Add VGG model support
+            return "VGG"
+        elif isinstance(model, models.DenseNet):  # Add DenseNet model support
+            return "DenseNet"
         else:
             raise ValueError("Modelo não suportado.")
 
@@ -28,14 +32,11 @@ class FeatureExtractor:
             features = self.model.bn1(features)
             features = self.model.relu(features)
             features = self.model.maxpool(features)
-
             features = self.model.layer1(features)
             features = self.model.layer2(features)
             features = self.model.layer3(features)
             features = self.model.layer4(features)
-
             features = self.model.avgpool(features)
-
         elif self.model_type == "GoogLeNet":
             features = self.model.conv1(inputs)
             features = self.model.maxpool1(features)
@@ -54,7 +55,12 @@ class FeatureExtractor:
             features = self.model.inception5a(features)
             features = self.model.inception5b(features)
             features = self.model.avgpool(features)
+        elif self.model_type == "VGG":
+            features = self.model.features(inputs)
+            features = self.model.avgpool(features)
+        elif self.model_type == "DenseNet":
+            features = self.model.features(inputs)
+            features = self.model.avgpool(features)
 
         features = torch.flatten(features, 1)
-
         return features
