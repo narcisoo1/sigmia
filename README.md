@@ -15,3 +15,7 @@ Para executar basta rodar o main.py, com o código:
 <br>python main.py
 <br>Segue o vídeo tutorial:
 <br>https://drive.google.com/file/d/1qHCi1U-Mn5OOOVRapAYbyUhPkOyd5y33/view?usp=sharing
+
+Dataset:
+<br>Segue link de dataset exemplo(caso não possua algum e quiser testar a ferramenta):
+<br>https://drive.google.com/drive/folders/12ScI3TP3F60Vg9ys7NqGbfzFopj34p_O?usp=sharing
